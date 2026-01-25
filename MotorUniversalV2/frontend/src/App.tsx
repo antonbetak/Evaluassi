@@ -105,6 +105,9 @@ const SupportDashboardPage = lazy(() => import('./pages/support/SupportDashboard
 const SupportUsersPage = lazy(() => import('./pages/support/SupportUsersPage'))
 const SupportTicketsPage = lazy(() => import('./pages/support/SupportTicketsPage'))
 const SupportCommunicationPage = lazy(() => import('./pages/support/SupportCommunicationPage'))
+const SupportCampusesPage = lazy(() => import('./pages/support/SupportCampusesPage'))
+const SupportCalendarPage = lazy(() => import('./pages/support/SupportCalendarPage'))
+const SupportSessionsPage = lazy(() => import('./pages/support/SupportSessionsPage'))
 const SupportCertificatesPage = lazy(() => import('./pages/support/SupportCertificatesPage'))
 const SupportVouchersPage = lazy(() => import('./pages/support/SupportVouchersPage'))
 const SupportTelemetryPage = lazy(() => import('./pages/support/SupportTelemetryPage'))
@@ -228,6 +231,9 @@ function App() {
                 <Route path="users" element={<SupportUsersPage />} />
                 <Route path="tickets" element={<SupportTicketsPage />} />
                 <Route path="communication" element={<SupportCommunicationPage />} />
+                <Route path="campuses" element={<SupportCampusesPage />} />
+                <Route path="calendar" element={<SupportCalendarPage />} />
+                <Route path="sessions" element={<SupportSessionsPage />} />
                 <Route path="certificates" element={<SupportCertificatesPage />} />
                 <Route path="vouchers" element={<SupportVouchersPage />} />
                 <Route path="telemetry" element={<SupportTelemetryPage />} />
@@ -240,6 +246,9 @@ function App() {
                 <Route path="users" element={<SupportUsersPage />} />
                 <Route path="tickets" element={<SupportTicketsPage />} />
                 <Route path="communication" element={<SupportCommunicationPage />} />
+                <Route path="campuses" element={<SupportCampusesPage />} />
+                <Route path="calendar" element={<SupportCalendarPage />} />
+                <Route path="sessions" element={<SupportSessionsPage />} />
                 <Route path="certificates" element={<SupportCertificatesPage />} />
                 <Route path="vouchers" element={<SupportVouchersPage />} />
                 <Route path="telemetry" element={<SupportTelemetryPage />} />
@@ -255,6 +264,9 @@ function App() {
             <Route path="users" element={<SupportUsersPage />} />
             <Route path="tickets" element={<SupportTicketsPage />} />
             <Route path="communication" element={<SupportCommunicationPage />} />
+            <Route path="campuses" element={<SupportCampusesPage />} />
+            <Route path="calendar" element={<SupportCalendarPage />} />
+            <Route path="sessions" element={<SupportSessionsPage />} />
             <Route path="certificates" element={<SupportCertificatesPage />} />
             <Route path="vouchers" element={<SupportVouchersPage />} />
             <Route path="telemetry" element={<SupportTelemetryPage />} />

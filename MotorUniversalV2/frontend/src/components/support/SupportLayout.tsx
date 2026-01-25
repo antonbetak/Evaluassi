@@ -1,15 +1,29 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { MessageCircle, Radio, Settings, Ticket, Users, LayoutDashboard } from 'lucide-react'
+import {
+  CalendarDays,
+  LayoutDashboard,
+  MessageCircle,
+  Radio,
+  Settings,
+  Ticket,
+  Users,
+  Building2,
+  CalendarClock,
+} from 'lucide-react'
 import Layout from '../layout/Layout'
 import { isSupportPreviewEnabled } from '../../support/supportPreview'
 
 const navItems = [
-  { path: 'dashboard', label: 'Inicio', icon: LayoutDashboard },
+  { path: 'dashboard', label: 'Perfil soporte', icon: LayoutDashboard },
   { path: 'tickets', label: 'Tickets', icon: Ticket },
+  { path: 'communication', label: 'Chat', icon: MessageCircle },
   { path: 'users', label: 'Usuarios', icon: Users },
-  { path: 'communication', label: 'Comunicación', icon: MessageCircle },
+  { path: 'campuses', label: 'Planteles a cargo', icon: Building2 },
+  { path: 'vouchers', label: 'Vouchers', icon: Ticket },
+  { path: 'calendar', label: 'Calendario', icon: CalendarDays },
+  { path: 'sessions', label: 'Total sesiones', icon: CalendarClock },
   { path: 'telemetry', label: 'Telemetría', icon: Radio },
-  { path: 'settings', label: 'Configuración', icon: Settings },
+  { path: 'settings', label: 'Settings', icon: Settings },
 ]
 
 const SupportLayout = () => {
