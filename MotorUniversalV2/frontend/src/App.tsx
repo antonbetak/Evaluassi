@@ -8,6 +8,8 @@ import SystemReadyGuard from './components/SystemReadyGuard'
 // Eager imports (necesarios inmediatamente)
 import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
+import SupportLayout from './components/support/SupportLayout'
+import SupportGuard from './components/support/SupportGuard'
 
 // Lazy imports (cargados bajo demanda)
 const LandingPage = lazy(() => import('./pages/landing/LandingPage'))
@@ -96,6 +98,13 @@ const GroupDetailPage = lazy(() => import('./pages/partners/GroupDetailPage'))
 const UsersListPage = lazy(() => import('./pages/users/UsersListPage'))
 const UserFormPage = lazy(() => import('./pages/users/UserFormPage'))
 const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage'))
+
+// Support (Soporte)
+const SupportDashboardPage = lazy(() => import('./pages/support/SupportDashboardPage'))
+const SupportUsersPage = lazy(() => import('./pages/support/SupportUsersPage'))
+const SupportSessionsPage = lazy(() => import('./pages/support/SupportSessionsPage'))
+const SupportVouchersPage = lazy(() => import('./pages/support/SupportVouchersPage'))
+const SupportTelemetryPage = lazy(() => import('./pages/support/SupportTelemetryPage'))
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -197,6 +206,18 @@ function App() {
               <Route path="/user-management/new" element={<UserFormPage />} />
               <Route path="/user-management/:userId" element={<UserDetailPage />} />
               <Route path="/user-management/:userId/edit" element={<UserFormPage />} />
+            </Route>
+
+            {/* Support (Soporte) */}
+            <Route path="/support" element={<SupportGuard />}>
+              <Route element={<SupportLayout />}>
+                <Route index element={<Navigate to="/support/dashboard" replace />} />
+                <Route path="dashboard" element={<SupportDashboardPage />} />
+                <Route path="users" element={<SupportUsersPage />} />
+                <Route path="sessions" element={<SupportSessionsPage />} />
+                <Route path="vouchers" element={<SupportVouchersPage />} />
+                <Route path="telemetry" element={<SupportTelemetryPage />} />
+              </Route>
             </Route>
           </Route>
 
