@@ -14,13 +14,13 @@ import Layout from '../layout/Layout'
 import { isSupportPreviewEnabled } from '../../support/supportPreview'
 
 const navItems = [
-  { path: 'dashboard', label: 'Perfil soporte', icon: LayoutDashboard },
-  { path: 'tickets', label: 'Tickets', icon: Ticket },
-  { path: 'communication', label: 'Chat', icon: MessageCircle },
-  { path: 'users', label: 'Usuarios', icon: Users },
+  { path: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: 'campuses', label: 'Planteles a cargo', icon: Building2 },
+  { path: 'users', label: 'Administración', icon: Users },
+  { path: 'tickets', label: 'Tickets', icon: Ticket },
+  { path: 'communication', label: 'Chat', icon: MessageCircle, badge: 3 },
   { path: 'vouchers', label: 'Vouchers', icon: Ticket },
-  { path: 'calendar', label: 'Calendario', icon: CalendarDays },
+  { path: 'calendar', label: 'Calendario de sesiones', icon: CalendarDays },
   { path: 'sessions', label: 'Total sesiones', icon: CalendarClock },
   { path: 'telemetry', label: 'Telemetría', icon: Radio },
   { path: 'settings', label: 'Settings', icon: Settings },
@@ -61,7 +61,7 @@ const SupportLayout = () => {
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            {navItems.map(({ path, label, icon: Icon }) => (
+            {navItems.map(({ path, label, icon: Icon, badge }) => (
               <NavLink
                 key={path}
                 to={`${basePath}/${path}`}
@@ -75,6 +75,11 @@ const SupportLayout = () => {
               >
                 <Icon className="h-4 w-4" />
                 {label}
+                {badge ? (
+                  <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-semibold text-white">
+                    {badge}
+                  </span>
+                ) : null}
               </NavLink>
             ))}
           </div>
