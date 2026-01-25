@@ -12,7 +12,7 @@ interface SystemStatus {
   showTip: boolean
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
 const MAX_ATTEMPTS = 5
 const RETRY_DELAY = 5000 // 5 seconds
 
@@ -45,7 +45,7 @@ export default function SystemReadyGuard({ children }: SystemReadyGuardProps) {
         const timeoutSignal = setTimeout(() => controller.abort(), 60000) // 60s timeout for cold start
 
         // API_URL already includes /api, so use /warmup directly
-        const response = await fetch(`${API_URL}/warmup`, {
+        const response = await fetch(`${API_URL}/api/warmup`, {
           signal: controller.signal
         })
 
