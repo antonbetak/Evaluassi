@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { useAuthStore } from './store/authStore'
 import LoadingSpinner from './components/LoadingSpinner'
 import InactivityWatcher from './components/InactivityWatcher'
@@ -10,6 +10,7 @@ import Layout from './components/layout/Layout'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import SupportLayout from './components/support/SupportLayout'
 import SupportGuard from './components/support/SupportGuard'
+import { isSupportPreviewEnabled, logSupportPreviewOnce } from './support/supportPreview'
 
 // Lazy imports (cargados bajo demanda)
 const LandingPage = lazy(() => import('./pages/landing/LandingPage'))
@@ -110,6 +111,11 @@ const SupportSettingsPage = lazy(() => import('./pages/support/SupportSettingsPa
 
 function App() {
   const { isAuthenticated } = useAuthStore()
+  const supportPreviewEnabled = isSupportPreviewEnabled()
+
+  useEffect(() => {
+    logSupportPreviewOnce()
+  }, [])
 
   return (
     <SystemReadyGuard>
@@ -213,17 +219,30 @@ function App() {
           </Route>
 
           {/* Support (Soporte) */}
-          <Route path="/support" element={<SupportGuard />}>
-            <Route element={<SupportLayout />}>
-              <Route index element={<Navigate to="/support/dashboard" replace />} />
-              <Route path="dashboard" element={<SupportDashboardPage />} />
-              <Route path="users" element={<SupportUsersPage />} />
-              <Route path="tickets" element={<SupportTicketsPage />} />
-              <Route path="certificates" element={<SupportCertificatesPage />} />
-              <Route path="vouchers" element={<SupportVouchersPage />} />
-              <Route path="telemetry" element={<SupportTelemetryPage />} />
-              <Route path="settings" element={<SupportSettingsPage />} />
-            </Route>
+          <Route path="/support" element={supportPreviewEnabled ? <SupportLayout /> : <SupportGuard />}>
+            {supportPreviewEnabled ? (
+              <>
+                <Route index element={<Navigate to="/support/dashboard" replace />} />
+                <Route path="dashboard" element={<SupportDashboardPage />} />
+                <Route path="users" element={<SupportUsersPage />} />
+                <Route path="tickets" element={<SupportTicketsPage />} />
+                <Route path="certificates" element={<SupportCertificatesPage />} />
+                <Route path="vouchers" element={<SupportVouchersPage />} />
+                <Route path="telemetry" element={<SupportTelemetryPage />} />
+                <Route path="settings" element={<SupportSettingsPage />} />
+              </>
+            ) : (
+              <Route element={<SupportLayout />}>
+                <Route index element={<Navigate to="/support/dashboard" replace />} />
+                <Route path="dashboard" element={<SupportDashboardPage />} />
+                <Route path="users" element={<SupportUsersPage />} />
+                <Route path="tickets" element={<SupportTicketsPage />} />
+                <Route path="certificates" element={<SupportCertificatesPage />} />
+                <Route path="vouchers" element={<SupportVouchersPage />} />
+                <Route path="telemetry" element={<SupportTelemetryPage />} />
+                <Route path="settings" element={<SupportSettingsPage />} />
+              </Route>
+            )}
           </Route>
 
           {/* DEV ONLY: Support routes without auth */}
