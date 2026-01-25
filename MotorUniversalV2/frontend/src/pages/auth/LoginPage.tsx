@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { authService } from '../../services/authService'
+import type { User } from '../../types'
 import { 
   GraduationCap, 
   Mail, 
@@ -23,6 +24,11 @@ const LoginPage = () => {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const devSupportEnabled = import.meta.env.VITE_DEV_SUPPORT_LOGIN === 'true'
+  const devSupportCredentials = {
+    username: 'soporte@evaluaasi.dev',
+    password: 'soporte123',
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -30,6 +36,15 @@ const LoginPage = () => {
     setLoading(true)
 
     try {
+      if (
+        devSupportEnabled &&
+        formData.username.trim() === devSupportCredentials.username &&
+        formData.password === devSupportCredentials.password
+      ) {
+        handleDevSupportLogin()
+        return
+      }
+
       const response = await authService.login(formData)
       login(response.user, response.access_token, response.refresh_token)
       navigate('/dashboard')
@@ -39,6 +54,26 @@ const LoginPage = () => {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleDevSupportLogin = () => {
+    const now = new Date().toISOString()
+    const devUser: User = {
+      id: 'dev-support-user',
+      email: 'soporte@evaluaasi.dev',
+      username: 'soporte.dev',
+      name: 'Soporte',
+      first_surname: 'Evaluassi',
+      full_name: 'Soporte Evaluassi',
+      role: 'soporte',
+      is_active: true,
+      is_verified: true,
+      created_at: now,
+      last_login: now,
+    }
+
+    login(devUser, 'dev-support-token', 'dev-support-refresh')
+    navigate('/support/dashboard')
   }
 
   return (
@@ -154,6 +189,21 @@ const LoginPage = () => {
                 </>
               )}
             </button>
+
+            {devSupportEnabled && (
+              <div className="space-y-2">
+                <button
+                  type="button"
+                  onClick={handleDevSupportLogin}
+                  className="w-full flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 xs:py-3 lg:py-4 3xl:py-5 border border-primary-200 text-primary-700 rounded-lg xs:rounded-xl lg:rounded-2xl hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm xs:text-base lg:text-lg 2xl:text-xl 3xl:text-2xl font-semibold transition-all"
+                >
+                  Acceso rápido Soporte (DEV)
+                </button>
+                <p className="text-xs xs:text-sm text-primary-600 text-center">
+                  Credenciales DEV: {devSupportCredentials.username} / {devSupportCredentials.password}
+                </p>
+              </div>
+            )}
           </form>
 
           {/* Divider */}

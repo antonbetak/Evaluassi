@@ -120,6 +120,7 @@ def create_app(config_name='development'):
     
     # Verificar y agregar columna label_style si no existe
     with app.app_context():
+        ensure_sqlite_schema(app)
         ensure_label_style_column(app)
     
     # Manejadores de errores
@@ -239,6 +240,26 @@ def ensure_label_style_column(app):
     except Exception as e:
         db.session.rollback()
         print(f"[AUTO-MIGRATE] Error verificando/agregando pdf_status: {e}")
+
+
+def ensure_sqlite_schema(app):
+    """Crear tablas automáticamente en SQLite local si no existen."""
+    from sqlalchemy import inspect
+
+    try:
+        if db.engine.dialect.name != 'sqlite':
+            return
+
+        inspector = inspect(db.engine)
+        if 'users' in inspector.get_table_names():
+            return
+
+        print("[INIT] ⚠️  SQLite sin tablas detectado, creando schema...")
+        db.create_all()
+        print("[INIT] ✅ Schema SQLite creado")
+    except Exception as e:
+        db.session.rollback()
+        print(f"[INIT] ❌ Error creando schema SQLite: {e}")
 
 # Force reload at Sat Jan  3 16:25:57 UTC 2026
 # Force deploy Sun Jan  4 21:04:10 UTC 2026
