@@ -170,6 +170,7 @@ export const ROLE_LABELS: Record<string, string> = {
   admin: 'Administrador',
   editor: 'Editor',
   soporte: 'Soporte',
+  support: 'Soporte',
   coordinator: 'Coordinador',
   candidato: 'Candidato',
   auxiliar: 'Auxiliar'
@@ -179,6 +180,7 @@ export const ROLE_COLORS: Record<string, string> = {
   admin: 'bg-red-100 text-red-800',
   editor: 'bg-purple-100 text-purple-800',
   soporte: 'bg-blue-100 text-blue-800',
+  support: 'bg-blue-100 text-blue-800',
   coordinator: 'bg-amber-100 text-amber-800',
   candidato: 'bg-green-100 text-green-800',
   auxiliar: 'bg-gray-100 text-gray-800'

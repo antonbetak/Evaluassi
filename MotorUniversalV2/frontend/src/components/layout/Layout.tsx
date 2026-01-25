@@ -72,6 +72,8 @@ const Layout = ({ children }: LayoutProps) => {
         return 'bg-green-100 text-green-800'
       case 'coordinator':
         return 'bg-amber-100 text-amber-800'
+      case 'support':
+        return 'bg-violet-100 text-violet-800'
       default:
         return 'bg-gray-100 text-gray-800'
     }
@@ -88,6 +90,8 @@ const Layout = ({ children }: LayoutProps) => {
         return 'Candidato'
       case 'coordinator':
         return 'Coordinador'
+      case 'support':
+        return 'Soporte'
       default:
         return role
     }
@@ -203,6 +207,18 @@ const Layout = ({ children }: LayoutProps) => {
                     }`}
                   >
                     Usuarios
+                  </Link>
+                )}
+                {user?.role === 'support' && (
+                  <Link
+                    to="/support/dashboard"
+                    className={`px-2.5 py-1.5 xl:px-3 xl:py-2 2xl:px-4 2xl:py-2.5 3xl:px-5 3xl:py-3 4xl:px-6 4xl:py-3.5 rounded-lg text-sm xl:text-base 2xl:text-lg 3xl:text-xl 4xl:text-2xl transition-all ${
+                      location.pathname.startsWith('/support')
+                        ? 'text-primary-600 font-semibold bg-primary-50'
+                        : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    Soporte
                   </Link>
                 )}
               </nav>
@@ -407,6 +423,23 @@ const Layout = ({ children }: LayoutProps) => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
                     Usuarios
+                  </div>
+                </Link>
+              )}
+              {user?.role === 'support' && (
+                <Link 
+                  to="/support/dashboard" 
+                  className={`block px-3 py-3 rounded-lg transition-all ${
+                    location.pathname.startsWith('/support') 
+                      ? 'bg-primary-50 text-primary-600 font-medium' 
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 10a6 6 0 10-12 0v1H4a1 1 0 00-1 1v6a2 2 0 002 2h14a2 2 0 002-2v-6a1 1 0 00-1-1h-2v-1z" />
+                    </svg>
+                    Soporte
                   </div>
                 </Link>
               )}

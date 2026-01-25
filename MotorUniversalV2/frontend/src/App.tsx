@@ -102,9 +102,11 @@ const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage'))
 // Support (Soporte)
 const SupportDashboardPage = lazy(() => import('./pages/support/SupportDashboardPage'))
 const SupportUsersPage = lazy(() => import('./pages/support/SupportUsersPage'))
-const SupportSessionsPage = lazy(() => import('./pages/support/SupportSessionsPage'))
+const SupportTicketsPage = lazy(() => import('./pages/support/SupportTicketsPage'))
+const SupportCertificatesPage = lazy(() => import('./pages/support/SupportCertificatesPage'))
 const SupportVouchersPage = lazy(() => import('./pages/support/SupportVouchersPage'))
 const SupportTelemetryPage = lazy(() => import('./pages/support/SupportTelemetryPage'))
+const SupportSettingsPage = lazy(() => import('./pages/support/SupportSettingsPage'))
 
 function App() {
   const { isAuthenticated } = useAuthStore()
@@ -208,16 +210,19 @@ function App() {
               <Route path="/user-management/:userId/edit" element={<UserFormPage />} />
             </Route>
 
-            {/* Support (Soporte) */}
-            <Route path="/support" element={<SupportGuard />}>
-              <Route element={<SupportLayout />}>
-                <Route index element={<Navigate to="/support/dashboard" replace />} />
-                <Route path="dashboard" element={<SupportDashboardPage />} />
-                <Route path="users" element={<SupportUsersPage />} />
-                <Route path="sessions" element={<SupportSessionsPage />} />
-                <Route path="vouchers" element={<SupportVouchersPage />} />
-                <Route path="telemetry" element={<SupportTelemetryPage />} />
-              </Route>
+          </Route>
+
+          {/* Support (Soporte) */}
+          <Route path="/support" element={<SupportGuard />}>
+            <Route element={<SupportLayout />}>
+              <Route index element={<Navigate to="/support/dashboard" replace />} />
+              <Route path="dashboard" element={<SupportDashboardPage />} />
+              <Route path="users" element={<SupportUsersPage />} />
+              <Route path="tickets" element={<SupportTicketsPage />} />
+              <Route path="certificates" element={<SupportCertificatesPage />} />
+              <Route path="vouchers" element={<SupportVouchersPage />} />
+              <Route path="telemetry" element={<SupportTelemetryPage />} />
+              <Route path="settings" element={<SupportSettingsPage />} />
             </Route>
           </Route>
 

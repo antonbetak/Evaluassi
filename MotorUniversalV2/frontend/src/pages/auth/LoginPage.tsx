@@ -36,11 +36,16 @@ const LoginPage = () => {
     setLoading(true)
 
     try {
-      if (
-        devSupportEnabled &&
-        formData.username.trim() === devSupportCredentials.username &&
-        formData.password === devSupportCredentials.password
-      ) {
+      if (devSupportEnabled) {
+        const isDevCredentials =
+          formData.username.trim() === devSupportCredentials.username &&
+          formData.password === devSupportCredentials.password
+
+        if (!isDevCredentials) {
+          setError('Credenciales DEV inválidas')
+          return
+        }
+
         handleDevSupportLogin()
         return
       }
@@ -59,20 +64,20 @@ const LoginPage = () => {
   const handleDevSupportLogin = () => {
     const now = new Date().toISOString()
     const devUser: User = {
-      id: 'dev-support-user',
+      id: 999,
       email: 'soporte@evaluaasi.dev',
       username: 'soporte.dev',
-      name: 'Soporte',
-      first_surname: 'Evaluassi',
-      full_name: 'Soporte Evaluassi',
-      role: 'soporte',
+      name: 'Soporte DEV',
+      first_surname: '',
+      full_name: 'Soporte DEV',
+      role: 'support',
       is_active: true,
       is_verified: true,
       created_at: now,
       last_login: now,
     }
 
-    login(devUser, 'dev-support-token', 'dev-support-refresh')
+    login(devUser, 'dev-token', 'dev-refresh-token')
     navigate('/support/dashboard')
   }
 
@@ -191,16 +196,12 @@ const LoginPage = () => {
             </button>
 
             {devSupportEnabled && (
-              <div className="space-y-2">
-                <button
-                  type="button"
-                  onClick={handleDevSupportLogin}
-                  className="w-full flex items-center justify-center gap-2 px-4 lg:px-6 py-2.5 xs:py-3 lg:py-4 3xl:py-5 border border-primary-200 text-primary-700 rounded-lg xs:rounded-xl lg:rounded-2xl hover:bg-primary-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 text-sm xs:text-base lg:text-lg 2xl:text-xl 3xl:text-2xl font-semibold transition-all"
-                >
-                  Acceso rápido Soporte (DEV)
-                </button>
-                <p className="text-xs xs:text-sm text-primary-600 text-center">
-                  Credenciales DEV: {devSupportCredentials.username} / {devSupportCredentials.password}
+              <div className="rounded-xl border border-primary-100 bg-primary-50 px-4 py-3 text-center">
+                <p className="text-xs xs:text-sm font-semibold text-primary-700">
+                  Modo Soporte DEV activo
+                </p>
+                <p className="text-xs xs:text-sm text-primary-600">
+                  Usa: {devSupportCredentials.username} / {devSupportCredentials.password}
                 </p>
               </div>
             )}

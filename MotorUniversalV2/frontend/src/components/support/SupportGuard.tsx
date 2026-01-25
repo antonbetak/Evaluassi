@@ -4,8 +4,13 @@ import { useAuthStore } from '../../store/authStore'
 
 const SupportGuard = () => {
   const { user } = useAuthStore()
+  const devSupportEnabled = import.meta.env.VITE_DEV_SUPPORT_LOGIN === 'true'
 
-  if (user?.role !== 'soporte') {
+  if (devSupportEnabled) {
+    return <Outlet />
+  }
+
+  if (user?.role !== 'support') {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center px-6 py-16">
         <div className="max-w-md w-full bg-white border border-slate-200 rounded-2xl shadow-sm p-8 text-center">

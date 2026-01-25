@@ -36,7 +36,7 @@ import {
 import { useAuthStore } from '../../store/authStore';
 
 // Categorías de roles para los tabs
-const STAFF_ROLES = ['admin', 'editor', 'soporte', 'coordinator', 'auxiliar'];
+const STAFF_ROLES = ['admin', 'editor', 'soporte', 'support', 'coordinator', 'auxiliar'];
 const CANDIDATE_ROLES = ['candidato'];
 
 type TabType = 'all' | 'staff' | 'candidates';

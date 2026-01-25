@@ -7,14 +7,18 @@ import {
   Ticket,
   Radio,
   LifeBuoy,
+  Award,
+  Settings,
 } from 'lucide-react'
 
 const navItems = [
   { to: '/support/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/support/users', label: 'Usuarios', icon: Users },
-  { to: '/support/sessions', label: 'Sesiones', icon: Activity },
+  { to: '/support/tickets', label: 'Tickets', icon: Activity },
+  { to: '/support/certificates', label: 'Certificados', icon: Award },
   { to: '/support/vouchers', label: 'Vouchers', icon: Ticket },
   { to: '/support/telemetry', label: 'Telemetría', icon: Radio },
+  { to: '/support/settings', label: 'Configuración', icon: Settings },
 ]
 
 const SupportLayout = () => {

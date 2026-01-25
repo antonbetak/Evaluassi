@@ -210,6 +210,7 @@ const ProfilePage = () => {
       admin: { label: 'Administrador', color: 'bg-red-500' },
       editor: { label: 'Editor', color: 'bg-blue-500' },
       soporte: { label: 'Soporte', color: 'bg-purple-500' },
+      support: { label: 'Soporte', color: 'bg-purple-500' },
       candidato: { label: 'Candidato', color: 'bg-green-500' },
       auxiliar: { label: 'Auxiliar', color: 'bg-amber-500' }
     }
