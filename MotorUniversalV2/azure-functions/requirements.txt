@@ -1,0 +1,9 @@
+azure-functions
+azure-storage-queue
+azure-storage-blob
+pymssql
+sqlalchemy
+reportlab
+pypdf
+pillow
+qrcode

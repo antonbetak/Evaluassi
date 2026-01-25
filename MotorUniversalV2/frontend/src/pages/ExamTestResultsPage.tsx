@@ -1,0 +1,967 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useLocation, useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/authStore';
+import { 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle, 
+  ArrowLeft, 
+  RotateCcw, 
+  Clock, 
+  Target, 
+  ChevronDown,
+  ChevronUp,
+  MousePointer,
+  Type,
+  Download,
+  BookOpen,
+  Loader2,
+  Award,
+  Send,
+  FileText,
+  Trophy
+} from 'lucide-react';
+
+// Función para traducir tipos de pregunta al español
+const getQuestionTypeLabel = (type: string): string => {
+  const labels: Record<string, string> = {
+    'true_false': 'Verdadero / Falso',
+    'multiple_choice': 'Selección Única',
+    'multiple_select': 'Selección Múltiple',
+    'ordering': 'Ordenamiento',
+    'drag_drop': 'Arrastrar y Soltar'
+  };
+  return labels[type] || type;
+};
+
+// Tipos para los resultados de evaluación
+interface QuestionResult {
+  question_id: string;
+  question_type: string;
+  question_text: string;
+  user_answer: any;
+  is_correct: boolean;
+  score: number;
+  correct_answer: any;
+  correct_answer_text?: string;
+  correct_answers_text?: string[];
+  explanation?: string;
+  answers: any[];
+  // Campos adicionales para ordenamiento
+  correct_positions?: number;
+  total_positions?: number;
+  // Campos para categoría/tema
+  category_name?: string;
+  topic_name?: string;
+  max_score?: number;
+}
+
+interface ActionResult {
+  action_id: string;
+  action_number: number;
+  action_type: string;
+  user_response: any;
+  is_correct: boolean;
+  score: number;
+  correct_answer: string;
+  similarity?: number;
+  explanation?: string;
+}
+
+interface StepResult {
+  step_id: string;
+  step_number: number;
+  title: string;
+  is_correct: boolean;
+  actions: ActionResult[];
+}
+
+interface ExerciseResult {
+  exercise_id: string;
+  title: string;
+  is_correct: boolean;
+  total_score: number;
+  max_score: number;
+  steps: StepResult[];
+}
+
+interface TopicBreakdown {
+  earned: number;
+  max: number;
+  percentage: number;
+}
+
+interface CategoryBreakdown {
+  topics: Record<string, TopicBreakdown>;
+  earned: number;
+  max: number;
+  percentage: number;
+}
+
+interface EvaluationSummary {
+  total_items: number;
+  total_questions: number;
+  total_exercises: number;
+  correct_questions: number;
+  correct_exercises: number;
+  question_score: number;
+  exercise_score: number;
+  max_exercise_score: number;
+  total_points: number;
+  earned_points: number;
+  percentage: number;
+  evaluation_breakdown?: Record<string, CategoryBreakdown>;
+}
+
+interface EvaluationResults {
+  questions: QuestionResult[];
+  exercises: ExerciseResult[];
+  summary: EvaluationSummary;
+}
+
+const ExamTestResultsPage: React.FC = () => {
+  const { examId } = useParams<{ examId: string }>();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { accessToken, user } = useAuthStore();
+
+  // Verificar si el usuario puede ver las respuestas detalladas (no candidatos)
+  const canViewAnswers = user?.role && ['admin', 'editor', 'soporte'].includes(user.role);
+
+  // Expandir/colapsar secciones
+  const [expandedExercises, setExpandedExercises] = useState<Record<string, boolean>>({});
+
+  // Obtener datos de la navegación con manejo defensivo
+  const rawState = location.state;
+  
+  // Debug: Log del estado recibido
+  console.log('📊 ExamTestResultsPage - location:', location);
+  console.log('📊 ExamTestResultsPage - rawState:', rawState);
+  console.log('📊 ExamTestResultsPage - typeof rawState:', typeof rawState);
+  
+  // Parsear el estado de forma segura
+  const state = rawState as {
+    evaluationResults?: EvaluationResults;
+    items?: any[];
+    elapsedTime: number;
+    answers?: Record<string, any>;
+    exerciseResponses?: Record<string, Record<string, any>>;
+    examName?: string;
+    passingScore?: number;
+    resultId?: string;
+  } | null;
+
+  console.log('📊 evaluationResults:', state?.evaluationResults);
+  console.log('📊 evaluationResults keys:', state?.evaluationResults ? Object.keys(state.evaluationResults) : 'N/A');
+
+  const evaluationResults = state?.evaluationResults;
+  const elapsedTime = state?.elapsedTime || 0;
+  const resultId = state?.resultId;
+  
+  // Ref para evitar procesar múltiples veces
+  const hasUploadedRef = useRef(false);
+
+  // Si no hay resultados de evaluación, mostrar error con más información
+  if (!evaluationResults) {
+    console.error('❌ No se encontraron resultados de evaluación en el estado:', state);
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center overflow-x-hidden overscroll-contain">
+        <div className="text-center p-8 max-w-md">
+          <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Error al cargar resultados</h2>
+          <p className="text-gray-600 mb-4">No se pudieron obtener los resultados de la evaluación.</p>
+          {state?.answers && (
+            <p className="text-sm text-gray-500 mb-4">
+              Se recibieron respuestas pero no los resultados evaluados.
+              Por favor, intenta nuevamente.
+            </p>
+          )}
+          <button
+            onClick={() => navigate('/test-exams')}
+            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+          >
+            Volver a exámenes
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const { questions, exercises, summary } = evaluationResults;
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const getScoreBgColor = (percentage: number) => {
+    if (percentage >= 80) return 'from-green-500 to-emerald-600';
+    if (percentage >= 60) return 'from-yellow-500 to-amber-600';
+    return 'from-red-500 to-rose-600';
+  };
+
+  const toggleExercise = (exerciseId: string) => {
+    setExpandedExercises(prev => ({
+      ...prev,
+      [exerciseId]: !prev[exerciseId]
+    }));
+  };
+
+  // Estado para controlar la descarga del PDF
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  // Función para descargar el PDF desde el backend
+  const downloadPDFFromBackend = async () => {
+    if (!resultId) {
+      alert('No se encontró el ID del resultado. Por favor, intenta de nuevo.');
+      return;
+    }
+
+    setDownloadingPdf(true);
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://evaluaasi-api.whiteforest-44e7c57b.eastus.azurecontainerapps.io/api';
+      
+      // Obtener zona horaria del equipo del usuario
+      const clientTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      console.log('📤 Descargando PDF:', { resultId, apiUrl, hasToken: !!accessToken, timezone: clientTimezone });
+      
+      const response = await fetch(`${apiUrl}/exams/results/${resultId}/generate-pdf?timezone=${encodeURIComponent(clientTimezone)}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ Error response:', response.status, errorText);
+        throw new Error(`Error ${response.status}: ${errorText}`);
+      }
+      
+      // Descargar el PDF
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Reporte_Evaluacion_${resultId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
+    } catch (error) {
+      console.error('Error descargando PDF:', error);
+      alert('Error al descargar el PDF. Por favor intenta de nuevo.');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  // Efecto para marcar que el resultado se ha visto (sin subir PDF, ya que se genera en backend)
+  useEffect(() => {
+    if (resultId && !hasUploadedRef.current) {
+      hasUploadedRef.current = true;
+      console.log('📊 Resultado cargado:', resultId);
+    }
+  }, [resultId]);
+
+  const renderUserAnswer = (result: QuestionResult) => {
+    if (result.user_answer === undefined || result.user_answer === null) {
+      return <span className="text-gray-500 italic">Sin responder</span>;
+    }
+
+    switch (result.question_type) {
+      case 'true_false':
+        return <span className="font-medium">{result.user_answer ? 'Verdadero' : 'Falso'}</span>;
+
+      case 'multiple_choice':
+        const selectedAnswer = result.answers?.find((a: any) => String(a.id) === String(result.user_answer));
+        return (
+          <div
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: selectedAnswer?.answer_text || 'Sin responder' }}
+          />
+        );
+
+      case 'multiple_select':
+        const selectedAnswers = result.answers?.filter((a: any) => 
+          (result.user_answer || []).map(String).includes(String(a.id))
+        );
+        return (
+          <div className="space-y-1">
+            {selectedAnswers?.map((a: any) => (
+              <div
+                key={a.id}
+                className="prose prose-sm max-w-none flex items-center"
+              >
+                <span className="w-2 h-2 bg-current rounded-full mr-2 flex-shrink-0" />
+                <span dangerouslySetInnerHTML={{ __html: a.answer_text }} />
+              </div>
+            )) || <span className="text-gray-500 italic">Sin responder</span>}
+          </div>
+        );
+
+      case 'ordering':
+        const orderedAnswers = (result.user_answer || []).map((id: string, index: number) => {
+          const answer = result.answers?.find((a: any) => String(a.id) === String(id));
+          return (
+            <div key={id} className="flex items-center text-sm mb-1">
+              <span className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-medium mr-2">
+                {index + 1}
+              </span>
+              <span dangerouslySetInnerHTML={{ __html: answer?.answer_text || id }} />
+            </div>
+          );
+        });
+        return <div>{orderedAnswers}</div>;
+
+      case 'drag_drop': {
+        // Mostrar qué respuesta puso el usuario en cada espacio
+        const userAnswer = result.user_answer || {};
+        const allAnswers = result.answers || [];
+        
+        return (
+          <div className="space-y-1">
+            {Object.entries(userAnswer).map(([blankId, answerId]) => {
+              const answer = allAnswers.find((a: any) => String(a.id) === String(answerId));
+              const correctAnswer = allAnswers.find((a: any) => a.correct_answer === blankId);
+              const isCorrect = String(answerId) === String(correctAnswer?.id);
+              
+              return (
+                <div key={blankId} className="flex items-center gap-2 text-sm">
+                  <span className="px-2 py-0.5 bg-gray-200 rounded text-xs font-mono">
+                    {blankId.replace('blank_', 'Espacio ')}
+                  </span>
+                  <span className="text-gray-500">→</span>
+                  <span className={`px-2 py-0.5 rounded font-medium ${
+                    isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {answer?.answer_text || 'Sin respuesta'}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+
+      default:
+        return <span className="text-gray-500">-</span>;
+    }
+  };
+
+  const renderCorrectAnswer = (result: QuestionResult) => {
+    switch (result.question_type) {
+      case 'true_false':
+        return <span className="font-bold">{result.correct_answer ? 'Verdadero' : 'Falso'}</span>;
+
+      case 'multiple_choice': {
+        // Usar correct_answer_text si está disponible, sino buscar en answers
+        const correctText = result.correct_answer_text || 
+          result.answers?.find((a: any) => a.is_correct)?.answer_text ||
+          result.answers?.find((a: any) => String(a.id) === String(result.correct_answer))?.answer_text;
+        return (
+          <div
+            className="prose prose-sm max-w-none font-bold"
+            dangerouslySetInnerHTML={{ __html: correctText || '-' }}
+          />
+        );
+      }
+
+      case 'multiple_select': {
+        // Usar correct_answers_text si está disponible, sino buscar en answers
+        const correctTexts = result.correct_answers_text && result.correct_answers_text.length > 0
+          ? result.correct_answers_text
+          : result.answers?.filter((a: any) => a.is_correct).map((a: any) => a.answer_text) || [];
+        return (
+          <ul className="list-disc list-inside space-y-1">
+            {correctTexts.map((text: string, index: number) => (
+              <li key={index} className="text-sm font-bold">
+                <span dangerouslySetInnerHTML={{ __html: text }} />
+              </li>
+            ))}
+          </ul>
+        );
+      }
+
+      case 'ordering': {
+        // Usar correct_answers_text si está disponible, sino ordenar answers por answer_number
+        const orderedTexts = result.correct_answers_text && result.correct_answers_text.length > 0
+          ? result.correct_answers_text
+          : result.answers
+              ?.slice()
+              .sort((a: any, b: any) => (a.answer_number || 0) - (b.answer_number || 0))
+              .map((a: any) => a.answer_text) || [];
+        return (
+          <div className="space-y-1">
+            {orderedTexts.map((text: string, index: number) => (
+              <div key={index} className="flex items-center text-sm">
+                <span className="w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold mr-2">
+                  {index + 1}
+                </span>
+                <span className="font-bold" dangerouslySetInnerHTML={{ __html: text }} />
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      case 'drag_drop': {
+        // Mostrar qué respuesta va en cada espacio
+        const answers = result.answers || [];
+        const blanksMap = new Map<string, any>();
+        answers.forEach((a: any) => {
+          if (a.correct_answer && a.correct_answer.startsWith('blank_')) {
+            blanksMap.set(a.correct_answer, a);
+          }
+        });
+        
+        return (
+          <div className="space-y-1">
+            {Array.from(blanksMap.entries()).map(([blankId, answer]) => (
+              <div key={blankId} className="flex items-center gap-2 text-sm">
+                <span className="px-2 py-0.5 bg-gray-200 rounded text-xs font-mono">
+                  {blankId.replace('blank_', 'Espacio ')}
+                </span>
+                <span className="text-gray-500">→</span>
+                <span className="px-2 py-0.5 bg-green-100 text-green-800 rounded font-medium">
+                  {answer.answer_text}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      default:
+        return <span className="text-gray-500">-</span>;
+    }
+  };
+
+  return (
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 overflow-x-hidden overscroll-contain ${!canViewAnswers ? '' : ''}`}>
+      {/* Header con gradiente y bordes suaves */}
+      <div className="max-w-7xl 3xl:max-w-[2400px] 4xl:max-w-[2800px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-12 3xl:px-14 4xl:px-16 pt-4 sm:pt-6">
+        <div className={`bg-gradient-to-r ${getScoreBgColor(summary.percentage)} text-white rounded-xl sm:rounded-2xl shadow-xl`}>
+          <div className="px-4 sm:px-6 md:px-8 py-5 sm:py-6 md:py-8">
+          {/* Botón volver a exámenes para candidatos */}
+          {!canViewAnswers && (
+            <div className="mb-3 sm:mb-4">
+              <button
+                onClick={() => navigate('/exams')}
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-white/20 hover:bg-white/30 rounded-lg text-white text-xs sm:text-sm font-medium transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <span className="hidden xs:inline">Volver a</span> Exámenes
+              </button>
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div>
+              <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-3xl xl:text-4xl 2xl:text-5xl font-bold mb-1 sm:mb-2">Resultados del Examen</h1>
+              <p className="text-white/80 text-sm sm:text-base lg:text-lg xl:text-xl 2xl:text-2xl">Evaluación completada</p>
+            </div>
+            <div className="text-left sm:text-right">
+              <div className="text-3xl sm:text-4xl md:text-5xl font-bold">{summary.percentage}%</div>
+              <div className="text-white/80 text-xs sm:text-sm">Calificación Final</div>
+            </div>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl 3xl:max-w-[2400px] 4xl:max-w-[2800px] mx-auto px-2 sm:px-4 md:px-6 lg:px-8 xl:px-10 2xl:px-12 3xl:px-14 4xl:px-16 pt-4 sm:pt-6 pb-6 sm:pb-8">
+        {/* Summary Cards - Diferentes para candidatos */}
+        {!canViewAnswers ? (
+          /* Tarjetas para candidatos: Tiempo, Puntos, Respuestas enviadas, Estatus */
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 md:grid-cols-4 mb-6 sm:mb-8">
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-blue-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Tiempo</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-blue-600">{formatTime(elapsedTime)}</p>
+                </div>
+                <Clock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-blue-500" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-yellow-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Puntos</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-yellow-600">{Math.round(1000 * summary.percentage / 100)}</p>
+                </div>
+                <Trophy className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-yellow-500" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-green-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Respuestas</p>
+                  <p className="text-lg sm:text-xl md:text-2xl font-bold text-green-600">{summary.total_questions + summary.total_exercises}</p>
+                </div>
+                <Send className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-green-500" />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-amber-500">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Estatus</p>
+                  <p className={`text-sm sm:text-base md:text-lg font-bold ${summary.percentage >= 70 ? 'text-green-600' : 'text-red-600'}`}>
+                    {summary.percentage >= 70 ? 'Aprobado' : 'No aprobado'}
+                  </p>
+                </div>
+                <Award className={`w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 ${summary.percentage >= 70 ? 'text-green-500' : 'text-red-500'}`} />
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Tarjetas para admin/editor: Vista completa */
+          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4 md:grid-cols-5 mb-6 sm:mb-8 -mt-8 sm:-mt-10 md:-mt-12">
+          <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-gray-400">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Respuestas</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-gray-700">{summary.earned_points}/{summary.total_points}</p>
+              </div>
+              <CheckCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-gray-400" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-primary-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Preguntas</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-primary-600">{summary.correct_questions}/{summary.total_questions}</p>
+              </div>
+              <BookOpen className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-primary-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-purple-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Ejercicios</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600">{summary.correct_exercises}/{summary.total_exercises}</p>
+              </div>
+              <Target className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-purple-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Tiempo</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-green-600">{formatTime(elapsedTime)}</p>
+              </div>
+              <Clock className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-green-500" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg sm:rounded-xl shadow-lg p-3 sm:p-4 md:p-5 border-t-4 border-red-500 col-span-2 md:col-span-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Errores</p>
+                <p className="text-lg sm:text-xl md:text-2xl font-bold text-red-600">
+                  {(summary.total_questions - summary.correct_questions) + (summary.total_exercises - summary.correct_exercises)}
+                </p>
+              </div>
+              <XCircle className="w-6 h-6 sm:w-7 sm:h-7 md:w-8 md:h-8 text-red-500" />
+            </div>
+          </div>
+          </div>
+        )}
+
+        {/* Mensaje para candidatos */}
+        {!canViewAnswers && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg sm:rounded-xl p-4 sm:p-5 md:p-6 mb-6 sm:mb-8">
+            <div className="flex items-start">
+              <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 mr-2 sm:mr-3 flex-shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-base sm:text-lg font-semibold text-blue-900 mb-1">Resultados del Examen</h3>
+                <p className="text-sm sm:text-base text-blue-800">
+                  Aquí puedes ver tu calificación final y el desglose de tu desempeño por cada área evaluada.
+                  <span className="hidden sm:inline"> Esto te ayudará a identificar tus fortalezas y áreas de oportunidad.</span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Indicador de scroll para ver más detalles - solo para candidatos */}
+        {!canViewAnswers && summary.evaluation_breakdown && Object.keys(summary.evaluation_breakdown).length > 0 && (
+          <div className="flex justify-center mb-6">
+            <button
+              onClick={() => {
+                const breakdownSection = document.getElementById('breakdown-section');
+                if (breakdownSection) {
+                  breakdownSection.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className="flex flex-col items-center gap-1 text-gray-400 hover:text-primary-600 transition-colors"
+            >
+              <span className="text-sm font-medium">Ver desglose por área</span>
+              <ChevronDown className="w-5 h-5 animate-bounce" />
+            </button>
+          </div>
+        )}
+
+        {/* Desglose por Categoría/Tema */}
+        {summary.evaluation_breakdown && Object.keys(summary.evaluation_breakdown).length > 0 && (
+          <div id="breakdown-section" className="bg-white rounded-lg sm:rounded-xl shadow-lg mb-6 sm:mb-8">
+            <div className="px-4 sm:px-5 md:px-6 py-3 sm:py-4 border-b border-gray-200">
+              <h2 className="text-lg sm:text-xl font-bold text-gray-900">Desglose por Área</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">Puntaje obtenido por categoría y tema</p>
+            </div>
+            <div className="p-3 sm:p-4 md:p-6">
+              <div className="space-y-6">
+                {Object.entries(summary.evaluation_breakdown).map(([categoryName, categoryData], catIndex) => (
+                  <div key={categoryName} className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Categoría */}
+                    <div className="bg-gray-50 px-4 py-3 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="w-8 h-8 bg-primary-100 text-primary-700 rounded-full flex items-center justify-center text-sm font-bold">
+                          {catIndex + 1}
+                        </span>
+                        <span className="font-semibold text-gray-800">{categoryName}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-gray-500">
+                          {categoryData.earned.toFixed(1)}/{categoryData.max} pts
+                        </span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-bold ${
+                          categoryData.percentage >= 80 ? 'bg-green-100 text-green-700' :
+                          categoryData.percentage >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-red-100 text-red-700'
+                        }`}>
+                          {categoryData.percentage}%
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Temas */}
+                    <div className="divide-y divide-gray-100">
+                      {Object.entries(categoryData.topics).map(([topicName, topicData], topicIndex) => (
+                        <div key={topicName} className="px-4 py-3 flex items-center justify-between bg-white hover:bg-gray-50">
+                          <div className="flex items-center gap-2 ml-8">
+                            <span className="text-xs text-gray-400 font-medium">
+                              {catIndex + 1}.{topicIndex + 1}
+                            </span>
+                            <span className="text-gray-700">{topicName}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-sm text-gray-500">
+                              {topicData.earned.toFixed(1)}/{topicData.max} pts
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                              topicData.percentage >= 80 ? 'bg-green-100 text-green-700' :
+                              topicData.percentage >= 60 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {topicData.percentage}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* Nota sobre puntuación parcial */}
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-start">
+                  <AlertCircle className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-blue-800">
+                    <p className="font-semibold mb-1">Acerca de los puntajes:</p>
+                    <ul className="list-disc list-inside space-y-1 text-blue-700">
+                      <li>Las preguntas de <strong>ordenamiento</strong> otorgan puntos parciales por cada posición correcta.</li>
+                      <li>Las preguntas de <strong>selección múltiple</strong> otorgan puntos parciales según las respuestas correctas seleccionadas.</li>
+                      <li>Los <strong>ejercicios</strong> otorgan puntos por cada acción completada correctamente.</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Preguntas - Solo visible para admin/editor/soporte */}
+        {canViewAnswers && questions.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg mb-8">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                Preguntas ({summary.correct_questions}/{summary.total_questions} correctas)
+              </h2>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {questions.map((result, index) => (
+                <div key={result.question_id} className="p-6">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mr-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${result.is_correct ? 'bg-green-100' : 'bg-red-100'}`}>
+                        <BookOpen className={`w-5 h-5 ${result.is_correct ? 'text-green-600' : 'text-red-600'}`} />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center flex-wrap gap-2 mb-3">
+                        <span className="text-sm font-bold text-gray-900 bg-gray-100 px-3 py-1 rounded-full">
+                          Pregunta {index + 1}
+                        </span>
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
+                          {getQuestionTypeLabel(result.question_type)}
+                        </span>
+                        {result.score !== undefined && result.score > 0 && result.score < 1 && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⭐ Puntaje parcial: {(result.score * 100).toFixed(1)}%
+                            {result.question_type === 'ordering' && result.correct_positions !== undefined && (
+                              <span className="ml-1">({result.correct_positions}/{result.total_positions} posiciones)</span>
+                            )}
+                          </span>
+                        )}
+                        {result.category_name && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                            {result.category_name}
+                          </span>
+                        )}
+                      </div>
+                      
+                      <div
+                        className="prose prose-sm max-w-none mb-4 text-gray-800"
+                        dangerouslySetInnerHTML={{ __html: result.question_text }}
+                      />
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div className={`p-4 rounded-xl ${result.is_correct ? 'bg-green-50 border border-green-200' : 'bg-red-50 border border-red-200'}`}>
+                          <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                            <span className={`w-2 h-2 rounded-full mr-2 ${result.is_correct ? 'bg-green-500' : 'bg-red-500'}`} />
+                            Tu respuesta:
+                          </p>
+                          <div className={result.is_correct ? 'text-green-900' : 'text-red-900'}>
+                            {renderUserAnswer(result)}
+                          </div>
+                        </div>
+
+                        {!result.is_correct && (
+                          <div className="p-4 rounded-xl bg-green-50 border border-green-200">
+                            <p className="text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                              <CheckCircle className="w-4 h-4 text-green-500 mr-2" />
+                              Respuesta correcta:
+                            </p>
+                            <div className="text-green-900">
+                              {renderCorrectAnswer(result)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {result.explanation && (
+                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                          <div className="flex items-start">
+                            <AlertCircle className="w-5 h-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-semibold text-blue-900 mb-1">Explicación:</p>
+                              <p className="text-sm text-blue-800">{result.explanation}</p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Ejercicios - Solo visible para admin/editor/soporte */}
+        {canViewAnswers && exercises.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg mb-8">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                Ejercicios ({summary.correct_exercises}/{summary.total_exercises} correctos)
+              </h2>
+            </div>
+
+            <div className="divide-y divide-gray-100">
+              {exercises.map((exercise, index) => (
+                <div key={exercise.exercise_id} className="p-6">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mr-4">
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${exercise.is_correct ? 'bg-purple-100' : 'bg-red-100'}`}>
+                        <Target className={`w-5 h-5 ${exercise.is_correct ? 'text-purple-600' : 'text-red-600'}`} />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-bold text-gray-900 bg-gray-100 px-3 py-1 rounded-full">
+                            Ejercicio {index + 1}
+                          </span>
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            {exercise.total_score}/{exercise.max_score} acciones correctas
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => toggleExercise(exercise.exercise_id)}
+                          className="text-gray-500 hover:text-gray-700 p-1"
+                        >
+                          {expandedExercises[exercise.exercise_id] ? (
+                            <ChevronUp className="w-5 h-5" />
+                          ) : (
+                            <ChevronDown className="w-5 h-5" />
+                          )}
+                        </button>
+                      </div>
+                      
+                      <h3 className="text-lg font-medium text-gray-800 mb-2">{exercise.title}</h3>
+                      
+                      {/* Barra de progreso */}
+                      <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+                        <div
+                          className={`h-2 rounded-full transition-all ${
+                            exercise.is_correct ? 'bg-purple-500' : 'bg-amber-500'
+                          }`}
+                          style={{ width: `${exercise.max_score > 0 ? (exercise.total_score / exercise.max_score) * 100 : 0}%` }}
+                        />
+                      </div>
+
+                      {/* Detalle de pasos y acciones */}
+                      {expandedExercises[exercise.exercise_id] && (
+                        <div className="mt-4 space-y-4">
+                          {exercise.steps.map((step) => (
+                            <div key={step.step_id} className="bg-gray-50 rounded-lg p-4">
+                              <div className="flex items-center gap-2 mb-3">
+                                <span className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center text-xs font-bold">
+                                  {step.step_number}
+                                </span>
+                                <span className="font-medium text-gray-700">
+                                  {step.title || `Paso ${step.step_number}`}
+                                </span>
+                                {step.is_correct ? (
+                                  <CheckCircle className="w-4 h-4 text-green-500 ml-auto" />
+                                ) : (
+                                  <XCircle className="w-4 h-4 text-red-500 ml-auto" />
+                                )}
+                              </div>
+                              
+                              <div className="space-y-2 ml-8">
+                                {step.actions.map((action) => (
+                                  <div
+                                    key={action.action_id}
+                                    className={`flex items-center justify-between p-3 rounded-lg ${
+                                      action.is_correct ? 'bg-green-50' : 'bg-red-50'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      {action.action_type === 'button' ? (
+                                        <MousePointer className="w-4 h-4 text-gray-500" />
+                                      ) : (
+                                        <Type className="w-4 h-4 text-gray-500" />
+                                      )}
+                                      <div>
+                                        <span className="text-sm font-medium text-gray-700">
+                                          {action.action_type === 'button' ? 'Clic' : 'Texto'} #{action.action_number}
+                                        </span>
+                                        {action.action_type === 'textbox' && (
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            <span className="font-medium">Tu respuesta:</span> "{action.user_response || '(vacío)'}"
+                                            {!action.is_correct && (
+                                              <>
+                                                <span className="mx-1">→</span>
+                                                <span className="font-medium text-green-700">Correcto:</span> "{action.correct_answer}"
+                                              </>
+                                            )}
+                                            {action.similarity !== undefined && (
+                                              <span className="ml-2 text-blue-600">
+                                                (Similitud: {action.similarity}%)
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
+                                        {action.action_type === 'button' && (
+                                          <div className="text-xs text-gray-600 mt-1">
+                                            {action.user_response ? 'Clickeado' : 'No clickeado'}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                    {action.is_correct ? (
+                                      <CheckCircle className="w-5 h-5 text-green-600" />
+                                    ) : (
+                                      <XCircle className="w-5 h-5 text-red-600" />
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-2 sm:gap-3 md:gap-4">
+          <button
+            onClick={() => navigate(canViewAnswers ? '/test-exams' : '/exams')}
+            className="px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg sm:rounded-xl hover:bg-gray-50 flex items-center justify-center shadow-sm"
+          >
+            <ArrowLeft className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+            {canViewAnswers ? 'Volver a la Lista' : 'Volver a Exámenes'}
+          </button>
+          <button
+            onClick={downloadPDFFromBackend}
+            disabled={downloadingPdf || !resultId}
+            className="px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg sm:rounded-xl hover:from-blue-600 hover:to-blue-700 flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {downloadingPdf ? (
+              <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+            )}
+            {downloadingPdf ? 'Generando...' : 'Descargar Reporte'}
+          </button>
+          {/* Botón Detalle del intento para candidatos */}
+          {!canViewAnswers && resultId && (
+            <button
+              onClick={() => navigate(`/certificates/evaluation-report/${examId}/result/${resultId}`)}
+              className="px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg sm:rounded-xl hover:from-emerald-600 hover:to-emerald-700 flex items-center justify-center shadow-lg"
+            >
+              <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+              Detalle del Intento
+            </button>
+          )}
+          {/* Botón Reintentar solo para admin/editor/soporte */}
+          {canViewAnswers && (
+            <button
+              onClick={() => navigate(`/test-exams/${examId}/run`, {
+                state: {
+                  questionCount: (location.state as any)?.questionCount || 0,
+                  exerciseCount: (location.state as any)?.exerciseCount || 0
+                }
+              })}
+              className="px-4 sm:px-5 md:px-6 py-2.5 sm:py-3 text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-primary-500 to-primary-600 rounded-lg sm:rounded-xl hover:from-primary-600 hover:to-primary-700 flex items-center justify-center shadow-lg"
+            >
+              <RotateCcw className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1.5 sm:mr-2" />
+              Reintentar Examen
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ExamTestResultsPage;

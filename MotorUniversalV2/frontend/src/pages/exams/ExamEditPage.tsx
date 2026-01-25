@@ -1,0 +1,1878 @@
+import { useParams, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState, useEffect } from 'react'
+import { examService } from '../../services/examService'
+import { useAuthStore } from '../../store/authStore'
+import api from '../../services/api'
+import LoadingSpinner from '../../components/LoadingSpinner'
+import ExamTestConfigModal from '../../components/ExamTestConfigModal'
+import Breadcrumb from '../../components/Breadcrumb'
+
+// Componente de notificación toast
+interface ToastProps {
+  message: string
+  type: 'success' | 'error'
+  onClose: () => void
+}
+
+const Toast = ({ message, type, onClose }: ToastProps) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose()
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <div className="fixed top-4 right-4 z-50 animate-slide-in">
+      <div className={`flex items-center gap-3 px-6 py-4 rounded-lg shadow-lg ${
+        type === 'success' 
+          ? 'bg-green-600 text-white' 
+          : 'bg-red-600 text-white'
+      }`}>
+        {type === 'success' ? (
+          <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        )}
+        <span className="font-medium">{message}</span>
+        <button
+          onClick={onClose}
+          className="ml-2 hover:opacity-80 transition-opacity"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+interface ValidationError {
+  type: string
+  message: string
+  details: string
+}
+
+const ExamEditPage = () => {
+  const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+  
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showPublishModal, setShowPublishModal] = useState(false)
+  const [showEcmConflictModal, setShowEcmConflictModal] = useState(false)
+  const [ecmConflictData, setEcmConflictData] = useState<{
+    current_exam?: { id: number; name: string; version: string; ecm_code: string | null };
+    conflicting_exam?: { id: number; name: string; version: string; is_published: boolean };
+  } | null>(null)
+  const [showCreateCategoryModal, setShowCreateCategoryModal] = useState(false)
+  const [showDeleteCategoryModal, setShowDeleteCategoryModal] = useState<number | null>(null)
+  const [showEditCategoryModal, setShowEditCategoryModal] = useState<number | null>(null)
+  const [showPercentageWarningModal, setShowPercentageWarningModal] = useState(false)
+  const [showEditExamModal, setShowEditExamModal] = useState(false)
+  const [percentageAdjustments, setPercentageAdjustments] = useState<{[key: number]: string}>({})
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [newCategoryPercentage, setNewCategoryPercentage] = useState('')
+  const [newCategoryDescription, setNewCategoryDescription] = useState('')
+  const [editCategoryName, setEditCategoryName] = useState('')
+  const [editCategoryPercentage, setEditCategoryPercentage] = useState('')
+  const [editCategoryDescription, setEditCategoryDescription] = useState('')
+  // Estados para editar examen
+  const [editExamName, setEditExamName] = useState('')
+  const [editExamVersion, setEditExamVersion] = useState('')
+  const [editExamDuration, setEditExamDuration] = useState('')
+  const [editExamPassingScore, setEditExamPassingScore] = useState('')
+  const [editExamPauseOnDisconnect, setEditExamPauseOnDisconnect] = useState(true)
+  const [editExamImageUrl, setEditExamImageUrl] = useState('')
+  const [editExamImagePreview, setEditExamImagePreview] = useState<string | null>(null)
+  const [password, setPassword] = useState('')
+  const [deleteError, setDeleteError] = useState('')
+  const [validationResult, setValidationResult] = useState<{
+    is_valid: boolean
+    errors: ValidationError[]
+    warnings: ValidationError[]
+    summary: { total_categories: number; total_topics: number; total_questions: number; total_exercises: number }
+  } | null>(null)
+  const [isValidating, setIsValidating] = useState(false)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+  const [showTestModal, setShowTestModal] = useState(false)
+  const [testQuestionCount, setTestQuestionCount] = useState(0)
+  const [testExerciseCount, setTestExerciseCount] = useState(0)
+  const [dominantColor, setDominantColor] = useState<string | null>(null)
+
+  const { data: exam, isLoading, error } = useQuery({
+    queryKey: ['exam', id],
+    queryFn: () => examService.getExam(Number(id), true), // Incluir detalles completos
+    enabled: !!id,
+  })
+
+  // Función para extraer el color dominante de una imagen
+  const extractDominantColor = (imageUrl: string) => {
+    const img = new Image()
+    img.crossOrigin = 'Anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+
+      // Escalar la imagen para analizar menos píxeles (más rápido)
+      const scale = 0.1
+      canvas.width = img.width * scale
+      canvas.height = img.height * scale
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        const data = imageData.data
+
+        let r = 0, g = 0, b = 0, count = 0
+
+        // Analizar los píxeles de la parte inferior de la imagen (donde va el texto)
+        const startY = Math.floor(canvas.height * 0.5) // Solo la mitad inferior
+        for (let y = startY; y < canvas.height; y++) {
+          for (let x = 0; x < canvas.width; x++) {
+            const i = (y * canvas.width + x) * 4
+            // Ignorar píxeles muy claros o muy oscuros
+            const brightness = (data[i] + data[i + 1] + data[i + 2]) / 3
+            if (brightness > 30 && brightness < 230) {
+              r += data[i]
+              g += data[i + 1]
+              b += data[i + 2]
+              count++
+            }
+          }
+        }
+
+        if (count > 0) {
+          r = Math.round(r / count)
+          g = Math.round(g / count)
+          b = Math.round(b / count)
+          
+          // Oscurecer el color para mejor contraste con texto blanco
+          r = Math.round(r * 0.6)
+          g = Math.round(g * 0.6)
+          b = Math.round(b * 0.6)
+          
+          setDominantColor(`rgb(${r}, ${g}, ${b})`)
+        }
+      } catch (e) {
+        // Si hay error de CORS, usar color por defecto
+        console.log('No se pudo extraer el color de la imagen')
+      }
+    }
+    img.src = imageUrl
+  }
+
+  // Extraer color cuando cambia la imagen del examen
+  useEffect(() => {
+    if (exam?.image_url) {
+      extractDominantColor(exam.image_url)
+    } else {
+      setDominantColor(null)
+    }
+  }, [exam?.image_url])
+
+  const deleteExamMutation = useMutation({
+    mutationFn: async (password: string) => {
+      // Verificar contraseña primero
+      try {
+        await api.post('/auth/verify-password', { password })
+      } catch (err: any) {
+        // Extraer el mensaje de error de la respuesta
+        const errorMsg = err.response?.data?.error || 'Contraseña incorrecta'
+        throw new Error(errorMsg)
+      }
+      // Si la contraseña es correcta, eliminar el examen
+      return await examService.deleteExam(Number(id))
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exams'] })
+      navigate('/exams')
+    },
+    onError: (error: any) => {
+      setDeleteError(error.message || 'Error al eliminar el examen')
+    },
+  })
+
+  const publishExamMutation = useMutation({
+    mutationFn: () => examService.publishExam(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      queryClient.invalidateQueries({ queryKey: ['exams'] })
+      setShowPublishModal(false)
+      setValidationResult(null)
+      setToast({ message: '¡Examen publicado exitosamente! Ya está disponible para los estudiantes.', type: 'success' })
+    },
+    onError: (error: any) => {
+      console.error('Error publishing exam:', error)
+      setToast({ 
+        message: `Error al publicar: ${error.response?.data?.message || error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    },
+  })
+
+  const unpublishExamMutation = useMutation({
+    mutationFn: () => examService.unpublishExam(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      queryClient.invalidateQueries({ queryKey: ['exams'] })
+      setToast({ message: 'El examen ha sido cambiado a borrador.', type: 'success' })
+    },
+    onError: (error: any) => {
+      console.error('Error unpublishing exam:', error)
+      setToast({ 
+        message: `Error al cambiar a borrador: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    },
+  })
+
+  const updateExamMutation = useMutation({
+    mutationFn: (data: { name: string; version: string; duration_minutes: number; passing_score: number; pause_on_disconnect: boolean; image_url?: string }) => 
+      examService.updateExam(Number(id), data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      queryClient.invalidateQueries({ queryKey: ['exams'] })
+      setShowEditExamModal(false)
+      setToast({ message: 'Examen actualizado exitosamente', type: 'success' })
+    },
+    onError: (error: any) => {
+      console.error('Error updating exam:', error)
+      setToast({ 
+        message: `Error al actualizar examen: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    },
+  })
+
+  const createCategoryMutation = useMutation({
+    mutationFn: (data: { name: string; percentage: number; description?: string }) => 
+      examService.createCategory(Number(id), data),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      setShowCreateCategoryModal(false)
+      setNewCategoryName('')
+      setNewCategoryPercentage('')
+      setNewCategoryDescription('')
+      setToast({ message: 'Categoría creada exitosamente', type: 'success' })
+      // Verificar porcentajes después de un breve delay para que se actualicen los datos
+      setTimeout(() => checkPercentageSum(), 500)
+    },
+    onError: (error: any) => {
+      console.error('Error creating category:', error)
+      setToast({ 
+        message: `Error al crear categoría: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    },
+  })
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: (categoryId: number) => examService.deleteCategory(Number(id), categoryId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      setShowDeleteCategoryModal(null)
+      setToast({ message: 'Categoría eliminada exitosamente', type: 'success' })
+      // Verificar porcentajes después de un breve delay para que se actualicen los datos
+      setTimeout(() => checkPercentageSum(), 500)
+    },
+    onError: (error: any) => {
+      console.error('Error deleting category:', error)
+      setToast({ 
+        message: `Error al eliminar categoría: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    },
+  })
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ categoryId, data }: { categoryId: number; data: { name: string; percentage: number; description?: string } }) => 
+      examService.updateCategory(Number(id), categoryId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      setShowEditCategoryModal(null)
+      setEditCategoryName('')
+      setEditCategoryPercentage('')
+      setEditCategoryDescription('')
+      setToast({ message: 'Categoría actualizada exitosamente', type: 'success' })
+    },
+    onError: (error: any) => {
+      console.error('Error updating category:', error)
+      setToast({ 
+        message: `Error al actualizar categoría: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    },
+  })
+
+  const handleValidateAndPublish = async () => {
+    setIsValidating(true)
+    try {
+      const result = await examService.validateExam(Number(id))
+      setValidationResult(result)
+      setShowPublishModal(true)
+    } catch (error: any) {
+      console.error('Error validating exam:', error)
+      setToast({ 
+        message: `Error al validar el examen: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    } finally {
+      setIsValidating(false)
+    }
+  }
+
+  const handlePublish = async () => {
+    console.log('handlePublish called, validationResult:', validationResult)
+    if (validationResult?.is_valid) {
+      // Verificar conflicto de ECM antes de publicar
+      try {
+        const conflictResult = await examService.checkEcmConflict(Number(id))
+        if (conflictResult.has_conflict) {
+          // Mostrar modal de conflicto
+          setEcmConflictData({
+            current_exam: conflictResult.current_exam,
+            conflicting_exam: conflictResult.conflicting_exam
+          })
+          setShowPublishModal(false)
+          setShowEcmConflictModal(true)
+          return
+        }
+        // No hay conflicto, publicar directamente
+        console.log('Calling publishExamMutation.mutate()')
+        publishExamMutation.mutate()
+      } catch (error: any) {
+        console.error('Error checking ECM conflict:', error)
+        // Si falla la verificación, publicar de todos modos
+        publishExamMutation.mutate()
+      }
+    } else {
+      console.log('Cannot publish: validation is not valid')
+    }
+  }
+
+  // Publicar el examen actual y despublicar el conflictivo
+  const handlePublishAndReplaceConflicting = async () => {
+    if (!ecmConflictData?.conflicting_exam) return
+    
+    try {
+      // Primero despublicar el examen conflictivo
+      await examService.unpublishExam(ecmConflictData.conflicting_exam.id)
+      // Luego publicar el actual
+      publishExamMutation.mutate()
+      setShowEcmConflictModal(false)
+      setEcmConflictData(null)
+    } catch (error: any) {
+      console.error('Error replacing conflicting exam:', error)
+      setToast({
+        message: `Error al reemplazar el examen: ${error.response?.data?.error || error.message || 'Error desconocido'}`,
+        type: 'error'
+      })
+    }
+  }
+
+  // Mantener el examen publicado actual (no hacer nada)
+  const handleKeepConflictingPublished = () => {
+    setShowEcmConflictModal(false)
+    setEcmConflictData(null)
+    setToast({
+      message: 'Publicación cancelada. El examen existente se mantiene publicado.',
+      type: 'success'
+    })
+  }
+
+  const handleUnpublish = () => {
+    unpublishExamMutation.mutate()
+  }
+
+  const handleOpenTestModal = () => {
+    // Calcular totales
+    let totalQuestions = 0
+    let totalExercises = 0
+    
+    if (exam?.categories) {
+      exam.categories.forEach((cat: any) => {
+        cat.topics?.forEach((topic: any) => {
+          totalQuestions += topic.questions?.length || 0
+          totalExercises += topic.exercises?.length || 0
+        })
+      })
+    }
+    
+    setTestQuestionCount(totalQuestions)
+    setTestExerciseCount(totalExercises)
+    setShowTestModal(true)
+  }
+
+  const handleStartTest = (questionCount: number, exerciseCount: number) => {
+    navigate(`/test-exams/${id}/run`, {
+      state: {
+        questionCount,
+        exerciseCount
+      }
+    })
+  }
+
+  const handleDeleteExam = (e: React.FormEvent) => {
+    e.preventDefault()
+    setDeleteError('')
+    if (password.trim()) {
+      deleteExamMutation.mutate(password)
+    }
+  }
+
+  const handleCreateCategory = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (newCategoryName.trim() && newCategoryPercentage) {
+      createCategoryMutation.mutate({
+        name: newCategoryName.trim(),
+        percentage: parseInt(newCategoryPercentage),
+        description: newCategoryDescription.trim() || undefined
+      })
+    }
+  }
+
+  const handleDeleteCategory = (categoryId: number) => {
+    deleteCategoryMutation.mutate(categoryId)
+  }
+
+  const handleEditCategory = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (showEditCategoryModal && editCategoryName.trim() && editCategoryPercentage) {
+      updateCategoryMutation.mutate({
+        categoryId: showEditCategoryModal,
+        data: {
+          name: editCategoryName.trim(),
+          percentage: parseInt(editCategoryPercentage),
+          description: editCategoryDescription.trim() || undefined
+        }
+      })
+    }
+  }
+
+  const openEditCategoryModal = (category: any) => {
+    setEditCategoryName(category.name || '')
+    setEditCategoryPercentage(category.percentage?.toString() || '')
+    setEditCategoryDescription(category.description || '')
+    setShowEditCategoryModal(category.id)
+  }
+
+  // Función para verificar si la suma de porcentajes es 100
+  const checkPercentageSum = () => {
+    const currentExam = queryClient.getQueryData<typeof exam>(['exam', id])
+    if (currentExam?.categories && currentExam.categories.length > 0) {
+      const totalPercentage = currentExam.categories.reduce(
+        (sum: number, cat: any) => sum + (cat.percentage || 0), 
+        0
+      )
+      if (totalPercentage !== 100) {
+        // Inicializar los valores actuales para el modal
+        const adjustments: {[key: number]: string} = {}
+        currentExam.categories.forEach((cat: any) => {
+          adjustments[cat.id] = cat.percentage?.toString() || '0'
+        })
+        setPercentageAdjustments(adjustments)
+        setShowPercentageWarningModal(true)
+      }
+    }
+  }
+
+  // Calcular la suma actual de porcentajes en el modal de ajuste
+  const getCurrentAdjustmentSum = () => {
+    return Object.values(percentageAdjustments).reduce(
+      (sum, val) => sum + (parseInt(val) || 0), 
+      0
+    )
+  }
+
+  // Guardar ajustes de porcentajes
+  const handleSavePercentageAdjustments = async () => {
+    const currentExam = queryClient.getQueryData<typeof exam>(['exam', id])
+    if (!currentExam?.categories) return
+
+    try {
+      // Actualizar cada categoría con su nuevo porcentaje
+      for (const category of currentExam.categories) {
+        const newPercentage = parseInt(percentageAdjustments[category.id]) || 0
+        if (newPercentage !== category.percentage) {
+          await examService.updateCategory(Number(id), category.id, {
+            name: category.name,
+            percentage: newPercentage,
+            description: category.description
+          })
+        }
+      }
+      await queryClient.invalidateQueries({ queryKey: ['exam', id] })
+      setShowPercentageWarningModal(false)
+      setPercentageAdjustments({})
+      setToast({ message: 'Porcentajes actualizados correctamente', type: 'success' })
+    } catch (error: any) {
+      console.error('Error updating percentages:', error)
+      setToast({ 
+        message: `Error al actualizar porcentajes: ${error.response?.data?.error || error.message || 'Error desconocido'}`, 
+        type: 'error' 
+      })
+    }
+  }
+
+  // Funciones para editar examen
+  const openEditExamModal = () => {
+    if (exam) {
+      setEditExamName(exam.name || '')
+      setEditExamVersion(exam.version || '')
+      setEditExamDuration(exam.duration_minutes?.toString() || '')
+      setEditExamPassingScore(exam.passing_score?.toString() || '70')
+      setEditExamPauseOnDisconnect(exam.pause_on_disconnect ?? true)
+      setEditExamImageUrl(exam.image_url || '')
+      setEditExamImagePreview(exam.image_url || null)
+      setShowEditExamModal(true)
+    }
+  }
+
+  const handleEditExam = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (editExamName.trim() && editExamVersion.trim()) {
+      updateExamMutation.mutate({
+        name: editExamName.trim(),
+        version: editExamVersion.trim(),
+        duration_minutes: parseInt(editExamDuration) || 0,
+        passing_score: parseInt(editExamPassingScore) || 70,
+        pause_on_disconnect: editExamPauseOnDisconnect,
+        image_url: editExamImageUrl || undefined
+      })
+    }
+  }
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      // Verificar tamaño (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setToast({ message: 'La imagen no debe superar 2MB', type: 'error' })
+        return
+      }
+      
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string
+        setEditExamImageUrl(base64)
+        setEditExamImagePreview(base64)
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const removeImage = () => {
+    setEditExamImageUrl('')
+    setEditExamImagePreview(null)
+  }
+
+  // Debug: Ver qué datos llegan
+  console.log('Exam data:', exam)
+  console.log('Categories:', exam?.categories)
+  console.log('Categories length:', exam?.categories?.length)
+
+  if (isLoading) return <LoadingSpinner message="Cargando examen..." fullScreen />
+  if (error) return <div className="text-center py-12 text-red-600">Error al cargar el examen</div>
+  if (!exam) return <div className="text-center py-12 text-gray-600">Examen no encontrado</div>
+
+  const breadcrumbItems = [
+    { label: exam.name, isActive: true },
+  ]
+
+  return (
+    <div className="max-w-4xl mx-auto">
+      {/* Breadcrumb */}
+      <Breadcrumb items={breadcrumbItems} />
+
+      {/* Botón volver a lista */}
+      <button
+        onClick={() => navigate('/exams')}
+        className="mb-4 text-primary-600 hover:text-primary-700 flex items-center text-sm font-medium transition-colors"
+      >
+        <svg className="w-5 h-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Volver a lista
+      </button>
+
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-gray-900">Editar Examen</h1>
+            <span className={`px-3 py-1 text-sm rounded-full ${
+              exam.is_published 
+                ? 'bg-green-100 text-green-800' 
+                : 'bg-gray-100 text-gray-800'
+            }`}>
+              {exam.is_published ? 'Publicado' : 'Borrador'}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Botón Probar Examen - solo visible cuando está publicado */}
+            {exam.is_published && (
+              <button
+                onClick={handleOpenTestModal}
+                className="px-4 py-2 btn-animated-gradient text-white rounded-lg font-medium flex items-center gap-2 shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 hover:scale-105 transition-all duration-300"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Probar Examen
+              </button>
+            )}
+
+            {/* Botón Publicar/Despublicar */}
+            {exam.is_published ? (
+              <button
+                onClick={handleUnpublish}
+                disabled={unpublishExamMutation.isPending}
+                className="px-4 py-2 bg-gray-600 text-white hover:bg-gray-700 rounded-lg transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                {unpublishExamMutation.isPending ? 'Cambiando...' : 'Cambiar a Borrador'}
+              </button>
+            ) : (
+              <button
+                onClick={handleValidateAndPublish}
+                disabled={isValidating}
+                className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors font-medium flex items-center gap-2 disabled:opacity-50"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                {isValidating ? 'Validando...' : 'Publicar'}
+              </button>
+            )}
+            
+            {/* Botón Eliminar (solo admin) */}
+            {user?.role === 'admin' && (
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors font-medium flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Eliminar Examen
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Header con Imagen de Fondo y Estadísticas Superpuestas */}
+      <div className="relative rounded-xl overflow-hidden mb-6 shadow-lg">
+        {/* Background Image */}
+        {exam.image_url ? (
+          <div className="absolute inset-0">
+            <img 
+              src={exam.image_url} 
+              alt={exam.name}
+              className="w-full h-full object-cover"
+            />
+            <div 
+              className="absolute inset-0 transition-colors duration-500"
+              style={{
+                background: dominantColor 
+                  ? `linear-gradient(to top, ${dominantColor} 0%, ${dominantColor}dd 40%, ${dominantColor}99 70%, transparent 100%)`
+                  : 'linear-gradient(to top, rgba(30,58,138,1) 0%, rgba(30,58,138,0.85) 40%, rgba(30,58,138,0.6) 70%, transparent 100%)'
+              }}
+            />
+          </div>
+        ) : (
+          <div 
+            className="absolute inset-0 transition-colors duration-500"
+            style={{
+              background: dominantColor 
+                ? `linear-gradient(135deg, ${dominantColor} 0%, ${dominantColor}dd 100%)`
+                : 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
+            }}
+          />
+        )}
+        
+        {/* Content */}
+        <div className="relative z-10 p-6">
+          {/* Header con título y botón editar */}
+          <div className="flex justify-between items-start mb-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-3xl font-bold text-white drop-shadow-lg">{exam.name}</h2>
+                <span className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 shadow-lg ${
+                  exam.is_published 
+                    ? 'bg-emerald-500 text-white' 
+                    : 'bg-amber-500 text-white'
+                }`}>
+                  {exam.is_published ? (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  )}
+                  {exam.is_published ? 'Publicado' : 'Borrador'}
+                </span>
+              </div>
+              <p className="text-xl font-mono font-semibold text-white/80">{exam.version}</p>
+            </div>
+            <button
+              onClick={openEditExamModal}
+              disabled={exam.is_published}
+              className={`px-4 py-2.5 rounded-xl font-semibold flex items-center gap-2 transition-all duration-200 ${
+                exam.is_published
+                  ? 'bg-white/20 text-white/50 cursor-not-allowed border border-white/20'
+                  : 'bg-white/40 text-white hover:bg-white/50 border border-white/30 hover:border-white/50 hover:-translate-y-0.5 shadow-md hover:shadow-lg backdrop-blur-sm'
+              }`}
+              title={exam.is_published ? 'Cambie a borrador para editar' : 'Editar información del examen'}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Modificar
+            </button>
+          </div>
+          
+          {/* Estadísticas superpuestas sobre la imagen */}
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-center border border-white/10 hover:bg-white/25 transition-all duration-200">
+              <div className="flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold text-white">{exam.duration_minutes || 0}</p>
+              <p className="text-sm text-white/70">Minutos</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-center border border-white/10 hover:bg-white/25 transition-all duration-200">
+              <div className="flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold text-white">{exam.passing_score}%</p>
+              <p className="text-sm text-white/70">Puntaje Mínimo</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-center border border-white/10 hover:bg-white/25 transition-all duration-200">
+              <div className="flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold text-white">{exam.total_categories || 0}</p>
+              <p className="text-sm text-white/70">Categorías</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-center border border-white/10 hover:bg-white/25 transition-all duration-200">
+              <div className="flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold text-white">
+                {exam.categories?.reduce((acc, cat) => acc + (cat.total_topics || 0), 0) || 0}
+              </p>
+              <p className="text-sm text-white/70">Temas</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-center border border-white/10 hover:bg-white/25 transition-all duration-200">
+              <div className="flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold text-white">{exam.total_questions}</p>
+              <p className="text-sm text-white/70">Preguntas</p>
+            </div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 text-center border border-white/10 hover:bg-white/25 transition-all duration-200">
+              <div className="flex items-center justify-center mb-2">
+                <svg className="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              </div>
+              <p className="text-2xl font-bold text-white">{exam.total_exercises}</p>
+              <p className="text-sm text-white/70">Ejercicios</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Advertencia de contenido publicado */}
+      {exam.is_published && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-center gap-3">
+          <svg className="w-5 h-5 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <div>
+            <p className="text-amber-800 font-medium">Contenido publicado</p>
+            <p className="text-amber-700 text-sm">Para editar el contenido, primero cambia el examen a borrador.</p>
+          </div>
+        </div>
+      )}
+
+      {/* Categorías del Examen */}
+      <div className="card">
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold">Categorías del Examen</h2>
+            <span className="text-sm text-gray-600">
+              {exam.categories?.length || 0} categoría{exam.categories?.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          {/* Botón Agregar Categoría - solo en modo borrador */}
+          <button
+            onClick={() => setShowCreateCategoryModal(true)}
+            disabled={exam.is_published}
+            className={`px-4 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all duration-200 ${
+              exam.is_published
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5'
+            }`}
+            title={exam.is_published ? 'Cambie a borrador para agregar categorías' : 'Agregar categoría'}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Agregar Categoría
+          </button>
+        </div>
+
+        {exam.categories && exam.categories.length > 0 ? (
+          <div className="overflow-x-auto animate-fadeSlideIn">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    #
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Nombre
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Porcentaje
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Temas
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Preguntas
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Ejercicios
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {exam.categories.map((category, index) => (
+                  <tr 
+                    key={category.id} 
+                    className="hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-transparent transition-all duration-200 cursor-pointer group"
+                    onClick={() => {
+                      if (exam.is_published) {
+                        setToast({ message: 'Cambie el examen a borrador para editar las categorías', type: 'error' })
+                      } else {
+                        navigate(`/exams/${id}/categories/${category.id}`)
+                      }
+                    }}
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-100 text-blue-700 font-bold text-sm shadow-sm">
+                        {index + 1}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-sm font-semibold text-gray-900 group-hover:text-blue-700 transition-colors">{category.name}</div>
+                      {category.description && (
+                        <div className="text-sm text-gray-500 mt-1">{category.description}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-100 text-indigo-700">
+                        {category.percentage}%
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-100 text-green-700">
+                        {category.total_topics || 0}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-blue-100 text-blue-700">
+                        {category.total_questions || 0}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-100 text-violet-700">
+                        {category.total_exercises || 0}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-sm" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (!exam.is_published) {
+                              openEditCategoryModal(category)
+                            }
+                          }}
+                          disabled={exam.is_published}
+                          className={`p-2 rounded-lg transition-colors ${
+                            exam.is_published
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                          }`}
+                          title={exam.is_published ? 'Cambie a borrador para editar' : 'Editar categoría'}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (!exam.is_published) {
+                              setShowDeleteCategoryModal(category.id)
+                            }
+                          }}
+                          disabled={exam.is_published}
+                          className={`p-2 rounded-lg transition-colors ${
+                            exam.is_published
+                              ? 'text-gray-300 cursor-not-allowed'
+                              : 'text-red-600 hover:bg-red-50 hover:text-red-700'
+                          }`}
+                          title={exam.is_published ? 'Cambie a borrador para eliminar' : 'Eliminar categoría'}
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="text-center py-8 text-gray-500">
+            <p className="mb-4">No hay categorías registradas para este examen</p>
+            {!exam.is_published && (
+              <button
+                onClick={() => setShowCreateCategoryModal(true)}
+                className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium inline-flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar Primera Categoría
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modal de Confirmación de Eliminación */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowDeleteModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-red-500 to-rose-600 px-6 py-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mr-3">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-white">
+                  Eliminar Examen
+                </h3>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                ¿Estás seguro de que deseas eliminar el examen <strong className="text-gray-900">"{exam.name}"</strong>?
+              </p>
+            
+              <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4 mb-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-800 font-semibold">
+                      Esta acción no se puede deshacer. Se eliminarán permanentemente:
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-red-700 mt-2 space-y-1">
+                      <li>Todas las categorías del examen ({exam.categories?.length || 0})</li>
+                      <li>Todos los temas, preguntas y ejercicios</li>
+                      <li>Toda la información asociada al examen</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <form onSubmit={handleDeleteExam}>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Para confirmar, ingresa tu contraseña:
+                  </label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      setDeleteError('')
+                    }}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200"
+                    placeholder="Tu contraseña"
+                    required
+                    autoFocus
+                  />
+                  {deleteError && (
+                    <p className="mt-2 text-sm text-red-600">{deleteError}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteModal(false)
+                      setPassword('')
+                      setDeleteError('')
+                    }}
+                    className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                    disabled={deleteExamMutation.isPending}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 hover:from-red-600 hover:to-rose-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={deleteExamMutation.isPending}
+                  >
+                    {deleteExamMutation.isPending ? 'Eliminando...' : 'Sí, eliminar examen'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Validación y Publicación */}
+      {showPublishModal && validationResult && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPublishModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className={`px-6 py-4 ${validationResult.is_valid ? 'bg-gradient-to-r from-green-500 to-emerald-600' : 'bg-gradient-to-r from-red-500 to-rose-600'}`}>
+              <div className="flex items-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mr-3">
+                  {validationResult.is_valid ? (
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {validationResult.is_valid ? 'Examen listo para publicar' : 'El examen tiene errores'}
+                  </h3>
+                  <p className={`text-sm mt-1 ${validationResult.is_valid ? 'text-green-100' : 'text-red-100'}`}>
+                    {validationResult.is_valid 
+                      ? 'Todas las validaciones han pasado correctamente'
+                      : 'Corrige los siguientes errores antes de publicar'
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+
+              {/* Resumen */}
+              <div className="grid grid-cols-4 gap-3 mb-6 bg-gray-50 p-4 rounded-lg">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">{validationResult.summary.total_categories}</p>
+                  <p className="text-xs text-gray-600">Categorías</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">{validationResult.summary.total_topics}</p>
+                  <p className="text-xs text-gray-600">Temas</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">{validationResult.summary.total_questions}</p>
+                  <p className="text-xs text-gray-600">Preguntas</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-primary-600">{validationResult.summary.total_exercises}</p>
+                  <p className="text-xs text-gray-600">Ejercicios</p>
+                </div>
+              </div>
+
+              {/* Errores */}
+              {validationResult.errors.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-red-800 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Errores ({validationResult.errors.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {validationResult.errors.map((error, index) => (
+                      <div key={index} className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r">
+                        <p className="text-sm font-medium text-red-800">{error.message}</p>
+                        <p className="text-xs text-red-600 mt-1">{error.details}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Advertencias */}
+              {validationResult.warnings.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="text-sm font-semibold text-yellow-800 mb-3 flex items-center">
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    Advertencias ({validationResult.warnings.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {validationResult.warnings.map((warning, index) => (
+                      <div key={index} className="bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded-r">
+                        <p className="text-sm font-medium text-yellow-800">{warning.message}</p>
+                        <p className="text-xs text-yellow-600 mt-1">{warning.details}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mensaje de éxito */}
+              {validationResult.is_valid && validationResult.warnings.length === 0 && (
+                <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-6 rounded-r">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <p className="text-sm font-medium text-green-800">
+                      El examen está completo y listo para ser publicado
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-end pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowPublishModal(false)
+                    setValidationResult(null)
+                  }}
+                  className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                >
+                  {validationResult.is_valid ? 'Cancelar' : 'Cerrar'}
+                </button>
+                {validationResult.is_valid && (
+                  <button
+                    onClick={handlePublish}
+                    disabled={publishExamMutation.isPending}
+                    className="px-5 py-2.5 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-medium shadow-lg shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30 hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {publishExamMutation.isPending ? 'Publicando...' : 'Confirmar Publicación'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Conflicto ECM */}
+      {showEcmConflictModal && ecmConflictData && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEcmConflictModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mr-3">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-white">Conflicto de Código ECM</h3>
+                  <p className="text-amber-100 text-sm mt-1">
+                    Ya existe un examen publicado con este código
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-r mb-6">
+                <p className="text-sm text-amber-800">
+                  El código ECM <span className="font-bold">{ecmConflictData.current_exam?.ecm_code}</span> ya está 
+                  asignado a otro examen publicado. Solo puede haber un examen publicado por código ECM.
+                </p>
+              </div>
+              
+              <div className="space-y-4">
+                {/* Examen actual (el que se quiere publicar) */}
+                <div className="border-2 border-primary-200 bg-primary-50 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-primary-600 uppercase tracking-wider">Este examen</span>
+                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">Borrador</span>
+                  </div>
+                  <p className="font-semibold text-gray-900">{ecmConflictData.current_exam?.name}</p>
+                  <p className="text-sm text-gray-600">Versión: {ecmConflictData.current_exam?.version}</p>
+                </div>
+                
+                {/* Examen conflictivo (ya publicado) */}
+                <div className="border-2 border-gray-200 bg-white rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Examen existente</span>
+                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Publicado</span>
+                  </div>
+                  <p className="font-semibold text-gray-900">{ecmConflictData.conflicting_exam?.name}</p>
+                  <p className="text-sm text-gray-600">Versión: {ecmConflictData.conflicting_exam?.version}</p>
+                </div>
+              </div>
+              
+              <p className="text-sm text-gray-600 mt-6 mb-4">
+                ¿Cuál examen desea mantener publicado?
+              </p>
+              
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handlePublishAndReplaceConflicting}
+                  disabled={publishExamMutation.isPending}
+                  className="w-full px-5 py-3 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {publishExamMutation.isPending ? 'Publicando...' : 'Publicar este y despublicar el existente'}
+                </button>
+                
+                <button
+                  onClick={handleKeepConflictingPublished}
+                  className="w-full px-5 py-3 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Mantener el existente publicado
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Crear Categoría */}
+      {showCreateCategoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowCreateCategoryModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-primary-500 to-primary-600 px-6 py-4">
+              <h3 className="text-xl font-bold text-white">Nueva Categoría</h3>
+              <p className="text-primary-100 text-sm mt-1">Añade una nueva categoría al examen</p>
+            </div>
+            
+            <form onSubmit={handleCreateCategory} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre de la categoría *
+                  </label>
+                  <input
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    className="input w-full"
+                    placeholder="Ej: Conocimientos Básicos"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Porcentaje del examen *
+                  </label>
+                  <input
+                    type="number"
+                    value={newCategoryPercentage}
+                    onChange={(e) => setNewCategoryPercentage(e.target.value)}
+                    className="input w-full"
+                    placeholder="Ej: 25"
+                    min="1"
+                    max="100"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Peso de esta categoría en la calificación final (1-100%)
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Descripción (opcional)
+                  </label>
+                  <textarea
+                    value={newCategoryDescription}
+                    onChange={(e) => setNewCategoryDescription(e.target.value)}
+                    className="input w-full"
+                    rows={2}
+                    placeholder="Descripción breve de la categoría"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateCategoryModal(false)
+                    setNewCategoryName('')
+                    setNewCategoryPercentage('')
+                    setNewCategoryDescription('')
+                  }}
+                  className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={createCategoryMutation.isPending || !newCategoryName.trim() || !newCategoryPercentage}
+                  className="px-5 py-2.5 bg-gradient-to-r from-primary-500 to-primary-600 text-white rounded-xl font-medium shadow-lg shadow-primary-500/25 hover:shadow-xl hover:shadow-primary-500/30 hover:from-primary-600 hover:to-primary-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {createCategoryMutation.isPending ? 'Creando...' : 'Crear Categoría'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Categoría */}
+      {showEditCategoryModal !== null && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowEditCategoryModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+              <h3 className="text-xl font-bold text-white">Editar Categoría</h3>
+              <p className="text-blue-100 text-sm mt-1">Modifica la información de la categoría</p>
+            </div>
+            
+            <form onSubmit={handleEditCategory} className="p-6">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="editCategoryName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre *
+                  </label>
+                  <input
+                    type="text"
+                    id="editCategoryName"
+                    value={editCategoryName}
+                    onChange={(e) => setEditCategoryName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ej: Seguridad Vial"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="editCategoryPercentage" className="block text-sm font-medium text-gray-700 mb-1">
+                    Porcentaje *
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      id="editCategoryPercentage"
+                      value={editCategoryPercentage}
+                      onChange={(e) => setEditCategoryPercentage(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Ej: 25"
+                      min="0"
+                      max="100"
+                      required
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                  </div>
+                </div>
+                
+                <div>
+                  <label htmlFor="editCategoryDescription" className="block text-sm font-medium text-gray-700 mb-1">
+                    Descripción (opcional)
+                  </label>
+                  <textarea
+                    id="editCategoryDescription"
+                    value={editCategoryDescription}
+                    onChange={(e) => setEditCategoryDescription(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Breve descripción de la categoría..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditCategoryModal(null)
+                    setEditCategoryName('')
+                    setEditCategoryPercentage('')
+                    setEditCategoryDescription('')
+                  }}
+                  className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateCategoryMutation.isPending || !editCategoryName.trim() || !editCategoryPercentage}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updateCategoryMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Eliminar Categoría */}
+      {showDeleteCategoryModal !== null && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowDeleteCategoryModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-red-500 to-rose-600 px-6 py-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mr-3">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-white">Eliminar Categoría</h3>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                ¿Estás seguro de que deseas eliminar esta categoría?
+              </p>
+            
+              <div className="bg-gradient-to-r from-red-50 to-rose-50 border border-red-200 rounded-xl p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-red-800 font-semibold">
+                      Esta acción no se puede deshacer. Se eliminarán:
+                    </p>
+                    <ul className="list-disc list-inside text-sm text-red-700 mt-2 space-y-1">
+                      <li>Todos los temas de esta categoría</li>
+                      <li>Todas las preguntas y ejercicios asociados</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowDeleteCategoryModal(null)}
+                  className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => handleDeleteCategory(showDeleteCategoryModal)}
+                  disabled={deleteCategoryMutation.isPending}
+                  className="px-5 py-2.5 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-xl font-medium shadow-lg shadow-red-500/25 hover:shadow-xl hover:shadow-red-500/30 hover:from-red-600 hover:to-rose-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deleteCategoryMutation.isPending ? 'Eliminando...' : 'Eliminar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Editar Examen */}
+      {showEditExamModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => { setShowEditExamModal(false); setEditExamImagePreview(exam.image_url || null); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-4">
+              <h3 className="text-xl font-bold text-white">Modificar Examen</h3>
+              <p className="text-blue-100 text-sm mt-1">Actualiza la información del examen</p>
+            </div>
+            
+            <form onSubmit={handleEditExam} className="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+              <div className="space-y-4">
+                {/* Imagen del Examen - Ancho completo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Imagen de Identidad Gráfica
+                  </label>
+                  {editExamImagePreview ? (
+                    <div className="relative">
+                      <img 
+                        src={editExamImagePreview} 
+                        alt="Preview"
+                        className="w-full h-40 object-cover rounded-lg border border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={removeImage}
+                        className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hover:bg-red-700 shadow-lg"
+                        title="Eliminar imagen"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg className="w-10 h-10 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <p className="mb-2 text-sm text-gray-500">
+                          <span className="font-semibold">Clic para subir</span> o arrastra y suelta
+                        </p>
+                        <p className="text-xs text-gray-500">PNG, JPG o GIF. Máximo 2MB.</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* Nombre del Examen */}
+                <div>
+                  <label htmlFor="editExamName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nombre del Examen *
+                  </label>
+                  <input
+                    type="text"
+                    id="editExamName"
+                    value={editExamName}
+                    onChange={(e) => setEditExamName(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Ej: Evaluación de Conocimientos de Seguridad"
+                    required
+                  />
+                </div>
+                
+                {/* Código ECM */}
+                <div>
+                  <label htmlFor="editExamVersion" className="block text-sm font-medium text-gray-700 mb-1">
+                    Código ECM *
+                  </label>
+                  <input
+                    type="text"
+                    id="editExamVersion"
+                    value={editExamVersion}
+                    onChange={(e) => setEditExamVersion(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    placeholder="Ej: ECM-001"
+                    required
+                  />
+                </div>
+                
+                {/* Duración y Puntaje Mínimo en grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="editExamDuration" className="block text-sm font-medium text-gray-700 mb-1">
+                      Duración (minutos)
+                    </label>
+                    <input
+                      type="number"
+                      id="editExamDuration"
+                      value={editExamDuration}
+                      onChange={(e) => setEditExamDuration(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="Ej: 60"
+                      min="0"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label htmlFor="editExamPassingScore" className="block text-sm font-medium text-gray-700 mb-1">
+                      Puntaje Mínimo (%)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        id="editExamPassingScore"
+                        value={editExamPassingScore}
+                        onChange={(e) => setEditExamPassingScore(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="Ej: 70"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Configuración de temporizador al desconectarse */}
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Comportamiento del temporizador al perder conexión
+                  </label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="pauseOnDisconnect"
+                        checked={editExamPauseOnDisconnect === true}
+                        onChange={() => setEditExamPauseOnDisconnect(true)}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">Pausar tiempo</span>
+                        <p className="text-xs text-gray-500">El tiempo se detiene si el alumno pierde conexión o cierra el navegador</p>
+                      </div>
+                    </label>
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="pauseOnDisconnect"
+                        checked={editExamPauseOnDisconnect === false}
+                        onChange={() => setEditExamPauseOnDisconnect(false)}
+                        className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-gray-800">Tiempo continúa</span>
+                        <p className="text-xs text-gray-500">El tiempo sigue corriendo aunque el alumno se desconecte</p>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Estadísticas del examen (solo lectura) */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-3">
+                    Contenido del Examen
+                  </label>
+                  <div className="grid grid-cols-4 gap-3 text-center">
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                      <div className="text-lg font-bold text-primary-600">{exam?.total_categories || 0}</div>
+                      <div className="text-xs text-gray-500">Categorías</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                      <div className="text-lg font-bold text-blue-600">
+                        {exam?.categories?.reduce((acc, cat) => acc + (cat.total_topics || 0), 0) || 0}
+                      </div>
+                      <div className="text-xs text-gray-500">Temas</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                      <div className="text-lg font-bold text-green-600">{exam?.total_questions || 0}</div>
+                      <div className="text-xs text-gray-500">Preguntas</div>
+                    </div>
+                    <div className="bg-white rounded-lg p-2 border border-gray-200">
+                      <div className="text-lg font-bold text-purple-600">{exam?.total_exercises || 0}</div>
+                      <div className="text-xs text-gray-500">Ejercicios</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditExamModal(false)
+                    setEditExamImagePreview(null)
+                  }}
+                  className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateExamMutation.isPending || !editExamName.trim() || !editExamVersion.trim()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl font-medium shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updateExamMutation.isPending ? 'Guardando...' : 'Guardar Cambios'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Advertencia de Porcentajes */}
+      {showPercentageWarningModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setShowPercentageWarningModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fadeSlideIn" onClick={(e) => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-amber-500 to-yellow-500 px-6 py-4">
+              <div className="flex items-center">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center mr-3">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-white">Ajustar Porcentajes</h3>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-gradient-to-r from-amber-50 to-yellow-50 border border-amber-200 rounded-xl p-4 mb-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-amber-800 font-semibold">
+                      La suma de los porcentajes debe ser exactamente 100%
+                    </p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      Suma actual: <span className={`font-bold ${getCurrentAdjustmentSum() === 100 ? 'text-green-600' : 'text-red-600'}`}>{getCurrentAdjustmentSum()}%</span>
+                      {getCurrentAdjustmentSum() !== 100 && (
+                        <span className="ml-2">
+                          ({getCurrentAdjustmentSum() > 100 ? `Excede por ${getCurrentAdjustmentSum() - 100}%` : `Faltan ${100 - getCurrentAdjustmentSum()}%`})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Botón para distribuir equitativamente */}
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const categories = exam?.categories || []
+                    if (categories.length === 0) return
+                    
+                    const equalPercentage = Math.floor(100 / categories.length)
+                    const remainder = 100 - (equalPercentage * categories.length)
+                    
+                    const newAdjustments: { [key: number]: string } = {}
+                    categories.forEach((cat: any, index: number) => {
+                      // Dar el residuo a la primera categoría
+                      const percentage = index === 0 ? equalPercentage + remainder : equalPercentage
+                      newAdjustments[cat.id] = percentage.toString()
+                    })
+                    
+                    setPercentageAdjustments(newAdjustments)
+                  }}
+                  className="w-full px-4 py-2.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl hover:bg-blue-100 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Distribuir Equitativamente
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {exam?.categories?.map((category: any) => (
+                  <div key={category.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{category.name}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={percentageAdjustments[category.id] || '0'}
+                        onChange={(e) => setPercentageAdjustments({
+                          ...percentageAdjustments,
+                          [category.id]: e.target.value
+                        })}
+                        className="w-20 px-3 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-amber-500 text-center transition-all duration-200"
+                        min="0"
+                        max="100"
+                      />
+                      <span className="text-gray-500">%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    setShowPercentageWarningModal(false)
+                    setPercentageAdjustments({})
+                  }}
+                  className="px-5 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-xl font-medium transition-all duration-200"
+                >
+                  Corregir Después
+                </button>
+                <button
+                  onClick={handleSavePercentageAdjustments}
+                  disabled={getCurrentAdjustmentSum() !== 100}
+                  className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-200 ${
+                    getCurrentAdjustmentSum() === 100 
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg shadow-green-500/25 hover:shadow-xl hover:shadow-green-500/30 hover:from-green-600 hover:to-emerald-700' 
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Guardar Cambios
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Configuración de Prueba */}
+      {showTestModal && (
+        <ExamTestConfigModal
+          examTitle={exam.name}
+          totalQuestions={testQuestionCount}
+          totalExercises={testExerciseCount}
+          onClose={() => setShowTestModal(false)}
+          onStart={handleStartTest}
+        />
+      )}
+
+      {/* Toast de notificación */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+export default ExamEditPage
