@@ -1,12 +1,15 @@
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { ShieldAlert } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 
 const SupportGuard = () => {
   const { user } = useAuthStore()
+  const location = useLocation()
   const devSupportEnabled = import.meta.env.VITE_DEV_SUPPORT_LOGIN === 'true'
 
-  if (devSupportEnabled) {
+  console.log('[DEV SUPPORT LOGIN]', import.meta.env.VITE_DEV_SUPPORT_LOGIN)
+
+  if (devSupportEnabled && location.pathname.startsWith('/support')) {
     return <Outlet />
   }
 

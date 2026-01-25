@@ -17,6 +17,11 @@ const MAX_ATTEMPTS = 5
 const RETRY_DELAY = 5000 // 5 seconds
 
 export default function SystemReadyGuard({ children }: SystemReadyGuardProps) {
+  // DEV ONLY: permitir acceso directo al módulo soporte en /dev/support sin warmup
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dev/support')) {
+    return <>{children}</>
+  }
+
   const [status, setStatus] = useState<SystemStatus>({
     isReady: false,
     isChecking: true,

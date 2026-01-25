@@ -226,6 +226,18 @@ function App() {
             </Route>
           </Route>
 
+          {/* DEV ONLY: Support routes without auth */}
+          <Route path="/dev/support" element={<SupportLayout />}>
+            <Route index element={<Navigate to="/dev/support/dashboard" replace />} />
+            <Route path="dashboard" element={<SupportDashboardPage />} />
+            <Route path="users" element={<SupportUsersPage />} />
+            <Route path="tickets" element={<SupportTicketsPage />} />
+            <Route path="certificates" element={<SupportCertificatesPage />} />
+            <Route path="vouchers" element={<SupportVouchersPage />} />
+            <Route path="telemetry" element={<SupportTelemetryPage />} />
+            <Route path="settings" element={<SupportSettingsPage />} />
+          </Route>
+
           {/* 404 */}
           <Route path="*" element={<Navigate to="/" />} />
           </Routes>

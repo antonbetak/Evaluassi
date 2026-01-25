@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import {
   LayoutDashboard,
@@ -23,6 +23,8 @@ const navItems = [
 
 const SupportLayout = () => {
   const { user } = useAuthStore()
+  const location = useLocation()
+  const isDevRoute = location.pathname.startsWith('/dev/support')
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
@@ -72,6 +74,11 @@ const SupportLayout = () => {
             <h1 className="text-lg font-semibold text-slate-900">Módulo Soporte</h1>
           </div>
           <div className="flex items-center gap-3">
+            {isDevRoute && (
+              <span className="hidden sm:inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                DEV MODE
+              </span>
+            )}
             <span className="hidden sm:inline text-sm text-slate-500">Acceso interno</span>
             <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-600">
               {user?.name?.[0]?.toUpperCase() ?? 'S'}
