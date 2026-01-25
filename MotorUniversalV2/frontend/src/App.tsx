@@ -104,6 +104,7 @@ const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage'))
 const SupportDashboardPage = lazy(() => import('./pages/support/SupportDashboardPage'))
 const SupportUsersPage = lazy(() => import('./pages/support/SupportUsersPage'))
 const SupportTicketsPage = lazy(() => import('./pages/support/SupportTicketsPage'))
+const SupportCommunicationPage = lazy(() => import('./pages/support/SupportCommunicationPage'))
 const SupportCertificatesPage = lazy(() => import('./pages/support/SupportCertificatesPage'))
 const SupportVouchersPage = lazy(() => import('./pages/support/SupportVouchersPage'))
 const SupportTelemetryPage = lazy(() => import('./pages/support/SupportTelemetryPage'))
@@ -226,6 +227,7 @@ function App() {
                 <Route path="dashboard" element={<SupportDashboardPage />} />
                 <Route path="users" element={<SupportUsersPage />} />
                 <Route path="tickets" element={<SupportTicketsPage />} />
+                <Route path="communication" element={<SupportCommunicationPage />} />
                 <Route path="certificates" element={<SupportCertificatesPage />} />
                 <Route path="vouchers" element={<SupportVouchersPage />} />
                 <Route path="telemetry" element={<SupportTelemetryPage />} />
@@ -237,6 +239,7 @@ function App() {
                 <Route path="dashboard" element={<SupportDashboardPage />} />
                 <Route path="users" element={<SupportUsersPage />} />
                 <Route path="tickets" element={<SupportTicketsPage />} />
+                <Route path="communication" element={<SupportCommunicationPage />} />
                 <Route path="certificates" element={<SupportCertificatesPage />} />
                 <Route path="vouchers" element={<SupportVouchersPage />} />
                 <Route path="telemetry" element={<SupportTelemetryPage />} />
@@ -251,6 +254,7 @@ function App() {
             <Route path="dashboard" element={<SupportDashboardPage />} />
             <Route path="users" element={<SupportUsersPage />} />
             <Route path="tickets" element={<SupportTicketsPage />} />
+            <Route path="communication" element={<SupportCommunicationPage />} />
             <Route path="certificates" element={<SupportCertificatesPage />} />
             <Route path="vouchers" element={<SupportVouchersPage />} />
             <Route path="telemetry" element={<SupportTelemetryPage />} />
