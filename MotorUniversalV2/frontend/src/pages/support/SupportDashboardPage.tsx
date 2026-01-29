@@ -7,7 +7,7 @@ const SupportDashboardPage = () => {
         <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Dashboard</p>
         <h2 className="text-2xl font-semibold text-gray-900">Bienvenido</h2>
         <p className="text-sm text-gray-600 max-w-2xl">
-          Vista general de tu perfil de soporte y estado operativo.
+          Vista general de tu perfil de soporte.
         </p>
       </div>
 
@@ -34,22 +34,6 @@ const SupportDashboardPage = () => {
             </span>
           </div>
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {[
-          { label: 'Tickets abiertos', value: '14', tone: 'bg-rose-50 text-rose-600' },
-          { label: 'En seguimiento', value: '8', tone: 'bg-amber-50 text-amber-700' },
-          { label: 'SLA hoy', value: '96%', tone: 'bg-emerald-50 text-emerald-600' },
-        ].map((item) => (
-          <div key={item.label} className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-            <p className="text-xs text-gray-500">{item.label}</p>
-            <p className="text-3xl font-semibold text-gray-900 mt-3">{item.value}</p>
-            <span className={`mt-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${item.tone}`}>
-              Actualizado
-            </span>
-          </div>
-        ))}
       </div>
     </div>
   )

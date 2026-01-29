@@ -236,8 +236,7 @@ const SupportTicketsPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="flex flex-col gap-3 border-b border-gray-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">Cola de tickets</h3>
@@ -317,47 +316,6 @@ const SupportTicketsPage = () => {
             </div>
           )}
         </div>
-
-        <aside className="space-y-4">
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900">Resumen rápido</h3>
-            <div className="mt-4 space-y-3 text-sm text-gray-600">
-              <div className="flex items-center justify-between">
-                <span>Tickets abiertos</span>
-                <span className="font-semibold text-gray-900">
-                  {tickets.filter((ticket) => ticket.status === 'open').length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Prioridad alta</span>
-                <span className="font-semibold text-gray-900">
-                  {tickets.filter((ticket) => ticket.priority === 'high').length}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Canal WhatsApp</span>
-                <span className="font-semibold text-gray-900">
-                  {tickets.filter((ticket) => ticket.channel === 'whatsapp').length}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
-            <h3 className="text-sm font-semibold text-gray-900">Acciones rápidas</h3>
-            <div className="mt-4 space-y-2 text-sm">
-              <button className="w-full rounded-xl border border-gray-200 px-4 py-3 text-left font-medium text-gray-700 hover:bg-gray-50 transition">
-                Asignar tickets por prioridad
-              </button>
-              <button className="w-full rounded-xl border border-gray-200 px-4 py-3 text-left font-medium text-gray-700 hover:bg-gray-50 transition">
-                Revisar tickets vencidos
-              </button>
-              <button className="w-full rounded-xl border border-gray-200 px-4 py-3 text-left font-medium text-gray-700 hover:bg-gray-50 transition">
-                Exportar lista
-              </button>
-            </div>
-          </div>
-        </aside>
-      </div>
 
       {selectedTicket && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40">

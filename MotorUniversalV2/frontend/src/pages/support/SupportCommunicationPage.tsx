@@ -92,6 +92,7 @@ const SupportCommunicationPage = () => {
   const [search, setSearch] = useState('')
   const [selectedThreadId, setSelectedThreadId] = useState<string>('thread-1')
   const [message, setMessage] = useState('')
+  const [showProfile, setShowProfile] = useState(false)
 
   const threads = useMemo(() => {
     if (!search.trim()) return mockThreads
@@ -180,8 +181,11 @@ const SupportCommunicationPage = () => {
                   <p className="text-sm font-semibold text-gray-900">{selectedUser.name}</p>
                   <p className="text-xs text-gray-500">{selectedUser.companyName}</p>
                 </div>
-                <button className="inline-flex items-center gap-2 text-xs font-semibold text-primary-600">
-                  Ver perfil
+                <button
+                  onClick={() => setShowProfile(true)}
+                  className="inline-flex items-center gap-2 text-xs font-semibold text-primary-600"
+                >
+                  Perfil del usuario
                   <ArrowUpRight className="h-4 w-4" />
                 </button>
               </div>
@@ -240,6 +244,46 @@ const SupportCommunicationPage = () => {
           )}
         </div>
       </div>
+      {selectedUser && showProfile && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
+          <div className="h-full w-full max-w-md bg-white shadow-xl overflow-y-auto">
+            <div className="border-b border-gray-200 px-6 py-4 flex items-start justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Perfil</p>
+                <h3 className="text-lg font-semibold text-gray-900 mt-1">{selectedUser.name}</h3>
+                <p className="text-xs text-gray-500">{selectedUser.email}</p>
+              </div>
+              <button
+                onClick={() => setShowProfile(false)}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-700"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="rounded-2xl border border-gray-200 p-4 bg-gray-50/50">
+                <p className="text-xs font-semibold text-gray-500">Empresa</p>
+                <p className="text-sm font-semibold text-gray-900 mt-1">{selectedUser.companyName}</p>
+                <p className="text-xs text-gray-500 mt-1">Último acceso: {selectedUser.lastLogin}</p>
+              </div>
+              <div className="rounded-2xl border border-gray-200 p-4">
+                <p className="text-xs font-semibold text-gray-500">Acciones rápidas</p>
+                <div className="mt-3 space-y-2">
+                  <button className="w-full rounded-xl bg-primary-600 text-white py-2 text-sm font-semibold">
+                    Resetear contraseña
+                  </button>
+                  <button className="w-full rounded-xl bg-gray-100 text-gray-700 py-2 text-sm font-semibold">
+                    Desbloquear cuenta
+                  </button>
+                  <button className="w-full rounded-xl border border-gray-200 text-gray-700 py-2 text-sm font-semibold">
+                    Reenviar verificación
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

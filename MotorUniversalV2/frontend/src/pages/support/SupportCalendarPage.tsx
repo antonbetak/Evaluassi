@@ -58,6 +58,31 @@ const SupportCalendarPage = () => {
             </div>
           ))}
         </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+          <div className="rounded-2xl border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-900">Sesiones agendadas mañana</p>
+            <div className="mt-3 space-y-3 text-sm text-gray-600">
+              {[
+                { time: '09:00', title: 'Examen - Plantel Norte', detail: 'Grupo Edut' },
+                { time: '12:30', title: 'Simulador - Plantel Centro', detail: 'Grupo UVP' },
+                { time: '17:00', title: 'Examen - Plantel Sur', detail: 'Grupo 2CC' },
+              ].map((item) => (
+                <div key={item.time} className="rounded-xl border border-gray-100 px-4 py-3">
+                  <p className="text-xs text-gray-400">{item.time}</p>
+                  <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                  <p className="text-xs text-gray-500">{item.detail}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-gray-200 p-4 bg-gray-50/50">
+            <p className="text-sm font-semibold text-gray-900">Notas del día</p>
+            <p className="text-xs text-gray-500 mt-2">
+              Verifica disponibilidad de salas y confirma asistentes antes de las 18:00.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
