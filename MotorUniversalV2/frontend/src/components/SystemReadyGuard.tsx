@@ -1,4 +1,5 @@
 import { useState, useEffect, ReactNode } from 'react'
+import { isSupportPreviewEnabled } from '../support/supportPreview'
 
 interface SystemReadyGuardProps {
   children: ReactNode
@@ -19,6 +20,14 @@ const RETRY_DELAY = 5000 // 5 seconds
 export default function SystemReadyGuard({ children }: SystemReadyGuardProps) {
   // DEV ONLY: permitir acceso directo al módulo soporte en /dev/support sin warmup
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dev/support')) {
+    return <>{children}</>
+  }
+  // DEV ONLY: permitir acceso directo al módulo soporte en /support con preview sin warmup
+  if (
+    typeof window !== 'undefined' &&
+    isSupportPreviewEnabled() &&
+    window.location.pathname.startsWith('/support')
+  ) {
     return <>{children}</>
   }
 

@@ -1,180 +1,69 @@
-import { useMemo, useState } from 'react'
-import { useSupportUsers } from '../../hooks/support/useSupportUsers'
+import { Mail, Search, SendHorizonal } from 'lucide-react'
 
 const SupportUsersPage = () => {
-  const { data: users = [] } = useSupportUsers()
-  const [search, setSearch] = useState({
-    email: '',
-    name: '',
-    curp: '',
-    id: '',
-  })
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
-
-  const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      const matchesEmail = user.email.toLowerCase().includes(search.email.toLowerCase())
-      const matchesName = user.name.toLowerCase().includes(search.name.toLowerCase())
-      const matchesCurp = user.curp.toLowerCase().includes(search.curp.toLowerCase())
-      const matchesId = user.id.toLowerCase().includes(search.id.toLowerCase())
-      return matchesEmail && matchesName && matchesCurp && matchesId
-    })
-  }, [users, search])
-
-  const selectedUser = users.find((user) => user.id === selectedUserId)
-
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Soporte</p>
-        <h2 className="text-2xl font-semibold text-slate-900">Buscar usuario</h2>
-        <p className="text-sm text-slate-600">
-          Encuentra usuarios por email, nombre, CURP o identificador interno.
+      <div className="flex flex-col gap-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Usuarios</p>
+        <h2 className="text-2xl font-semibold text-gray-900">Administración de usuarios</h2>
+        <p className="text-sm text-gray-600 max-w-2xl">
+          Búsqueda rápida para gestionar cuentas y accesos.
         </p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: 'Email', key: 'email' },
-            { label: 'Nombre', key: 'name' },
-            { label: 'CURP', key: 'curp' },
-            { label: 'ID', key: 'id' },
-          ].map((field) => (
-            <div key={field.key}>
-              <label className="text-xs font-semibold text-slate-500">{field.label}</label>
-              <input
-                value={search[field.key as keyof typeof search]}
-                onChange={(event) =>
-                  setSearch((prev) => ({ ...prev, [field.key]: event.target.value }))
-                }
-                placeholder={`Buscar ${field.label.toLowerCase()}`}
-                className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">Resultados</h3>
-            <p className="text-xs text-slate-500">{filteredUsers.length} usuarios encontrados</p>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
+        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
+          <select className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600">
+            <option>Elige subsistema</option>
+            <option>Edut</option>
+            <option>2CC</option>
+            <option>UVP</option>
+            <option>Universidad Veracruzana</option>
+            <option>Certificaciones</option>
+          </select>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              placeholder="Usuario, nombre, curp o email"
+              className="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm"
+            />
           </div>
+          <button className="rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white">
+            Buscar
+          </button>
         </div>
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500">
-              <tr>
-                <th className="px-6 py-3 text-left font-semibold">Usuario</th>
-                <th className="px-6 py-3 text-left font-semibold">Email</th>
-                <th className="px-6 py-3 text-left font-semibold">CURP</th>
-                <th className="px-6 py-3 text-left font-semibold">Estado</th>
-                <th className="px-6 py-3 text-left font-semibold">Último acceso</th>
-                <th className="px-6 py-3 text-left font-semibold">Intentos</th>
-                <th className="px-6 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredUsers.map((user) => (
-                <tr key={user.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-medium text-slate-900">{user.name}</td>
-                  <td className="px-6 py-4 text-slate-600">{user.email}</td>
-                  <td className="px-6 py-4 text-slate-600">{user.curp}</td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`text-xs px-2.5 py-1 rounded-full ${
-                        user.status === 'active'
-                          ? 'bg-emerald-50 text-emerald-600'
-                          : user.status === 'locked'
-                          ? 'bg-rose-50 text-rose-600'
-                          : 'bg-amber-50 text-amber-600'
-                      }`}
-                    >
-                      {user.status === 'active'
-                        ? 'Activo'
-                        : user.status === 'locked'
-                        ? 'Bloqueado'
-                        : 'Pendiente'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-slate-600">{user.lastLogin}</td>
-                  <td className="px-6 py-4 text-slate-600">{user.loginAttempts}</td>
-                  <td className="px-6 py-4 text-right">
-                    <button
-                      className="text-primary-600 text-xs font-semibold hover:text-primary-700"
-                      onClick={() => setSelectedUserId(user.id)}
-                    >
-                      Ver detalle
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+
+        <div className="rounded-xl border border-gray-200 bg-gray-50/40 px-4 py-3 text-xs text-gray-500">
+          Ingresa el nombre, usuario o correo de la persona que deseas buscar.
         </div>
       </div>
 
-      {selectedUser && (
-        <div className="fixed inset-0 bg-black/40 flex justify-end z-50">
-          <div className="bg-white w-full max-w-lg h-full shadow-xl p-6 overflow-y-auto">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">Detalle del usuario</h3>
-                <p className="text-sm text-slate-500">{selectedUser.email}</p>
-              </div>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <Mail className="h-5 w-5 text-primary-600" />
+          <h3 className="text-sm font-semibold text-gray-900">Enviar correo</h3>
+        </div>
+        <div className="mt-4 space-y-4">
+          <input
+            placeholder="Nombre de usuario o correo"
+            className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm"
+          />
+          <div className="flex flex-wrap gap-2">
+            {['Nuevo', 'Registro', 'Reenvío', 'Confirmación'].map((label) => (
               <button
-                onClick={() => setSelectedUserId(null)}
-                className="text-slate-500 hover:text-slate-700"
+                key={label}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
               >
-                Cerrar
+                {label}
               </button>
-            </div>
-
-            <div className="mt-6 space-y-4">
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-xs text-slate-500">Información general</p>
-                <p className="text-sm font-semibold text-slate-900">{selectedUser.name}</p>
-                <p className="text-xs text-slate-600">CURP: {selectedUser.curp}</p>
-                <p className="text-xs text-slate-600">ID: {selectedUser.id}</p>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-xs text-slate-500">Estatus de cuenta</p>
-                <p className="text-sm font-semibold text-slate-900 capitalize">
-                  {selectedUser.status}
-                </p>
-                <p className="text-xs text-slate-600">Último acceso: {selectedUser.lastLogin}</p>
-                <p className="text-xs text-slate-600">
-                  Intentos fallidos: {selectedUser.loginAttempts}
-                </p>
-              </div>
-
-              <div className="bg-slate-50 rounded-xl p-4">
-                <p className="text-xs text-slate-500">Historial de intentos de login</p>
-                <ul className="mt-2 space-y-2 text-xs text-slate-600">
-                  <li>Hoy 09:12 - Login exitoso</li>
-                  <li>Ayer 19:42 - Intento fallido</li>
-                  <li>Ayer 19:41 - Intento fallido</li>
-                </ul>
-              </div>
-
-              <div className="space-y-2">
-                <button className="w-full rounded-xl bg-primary-600 text-white py-2 text-sm font-semibold">
-                  Reset password (mock)
-                </button>
-                <button className="w-full rounded-xl bg-slate-100 text-slate-700 py-2 text-sm font-semibold">
-                  Unlock account (mock)
-                </button>
-                <button className="w-full rounded-xl border border-slate-200 text-slate-700 py-2 text-sm font-semibold">
-                  Resend verification (mock)
-                </button>
-              </div>
-            </div>
+            ))}
           </div>
+          <button className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+            <SendHorizonal className="h-4 w-4" />
+            Enviar correo
+          </button>
         </div>
-      )}
+      </div>
     </div>
   )
 }

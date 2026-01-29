@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { supportTickets } from '../../data/mockSupportData'
+import { listTickets } from '../../services/supportService'
 
 export const useSupportTickets = () => {
   return useQuery({
     queryKey: ['support', 'tickets'],
-    queryFn: async () => supportTickets,
+    queryFn: async () => listTickets(),
     staleTime: 5 * 60 * 1000,
   })
 }

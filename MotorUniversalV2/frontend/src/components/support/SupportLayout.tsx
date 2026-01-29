@@ -1,96 +1,89 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useAuthStore } from '../../store/authStore'
 import {
+  CalendarDays,
   LayoutDashboard,
-  Users,
-  Activity,
-  Ticket,
+  MessageCircle,
   Radio,
-  LifeBuoy,
-  Award,
   Settings,
+  Ticket,
+  Users,
+  Building2,
+  CalendarClock,
 } from 'lucide-react'
+import Layout from '../layout/Layout'
+import { isSupportPreviewEnabled } from '../../support/supportPreview'
 
 const navItems = [
-  { to: '/support/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/support/users', label: 'Usuarios', icon: Users },
-  { to: '/support/tickets', label: 'Tickets', icon: Activity },
-  { to: '/support/certificates', label: 'Certificados', icon: Award },
-  { to: '/support/vouchers', label: 'Vouchers', icon: Ticket },
-  { to: '/support/telemetry', label: 'Telemetría', icon: Radio },
-  { to: '/support/settings', label: 'Configuración', icon: Settings },
+  { path: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: 'campuses', label: 'Planteles a cargo', icon: Building2 },
+  { path: 'users', label: 'Administración', icon: Users },
+  { path: 'tickets', label: 'Tickets', icon: Ticket },
+  { path: 'communication', label: 'Chat', icon: MessageCircle, badge: 3 },
+  { path: 'vouchers', label: 'Vouchers', icon: Ticket },
+  { path: 'calendar', label: 'Calendario de sesiones', icon: CalendarDays },
+  { path: 'sessions', label: 'Total sesiones', icon: CalendarClock },
+  { path: 'telemetry', label: 'Telemetría', icon: Radio },
+  { path: 'settings', label: 'Settings', icon: Settings },
 ]
 
 const SupportLayout = () => {
-  const { user } = useAuthStore()
+  const previewEnabled = isSupportPreviewEnabled()
   const location = useLocation()
-  const isDevRoute = location.pathname.startsWith('/dev/support')
+  const basePath = location.pathname.startsWith('/dev/support') ? '/dev/support' : '/support'
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      <aside className="hidden lg:flex lg:flex-col w-72 bg-white border-r border-slate-200 px-6 py-8">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 rounded-xl bg-primary-600 text-white flex items-center justify-center">
-            <LifeBuoy className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold text-slate-900">Soporte Evaluassi</p>
-            <p className="text-xs text-slate-500">Centro de ayuda interno</p>
-          </div>
-        </div>
-
-        <nav className="flex-1 space-y-1">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition ${
-                  isActive
-                    ? 'bg-primary-50 text-primary-700'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                }`
-              }
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="pt-6 border-t border-slate-200">
-          <p className="text-xs text-slate-500">Sesión activa</p>
-          <p className="text-sm font-semibold text-slate-900">{user?.full_name ?? 'Soporte'}</p>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-600 mt-2">
-            Rol Soporte
-          </span>
-        </div>
-      </aside>
-
-      <div className="flex-1 flex flex-col">
-        <header className="bg-white border-b border-slate-200 px-6 lg:px-10 py-4 flex items-center justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-widest text-slate-400">Evaluassi</p>
-            <h1 className="text-lg font-semibold text-slate-900">Módulo Soporte</h1>
-          </div>
-          <div className="flex items-center gap-3">
-            {isDevRoute && (
-              <span className="hidden sm:inline-flex items-center rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                DEV MODE
-              </span>
-            )}
-            <span className="hidden sm:inline text-sm text-slate-500">Acceso interno</span>
-            <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-600">
-              {user?.name?.[0]?.toUpperCase() ?? 'S'}
+    <Layout>
+      <div className="space-y-6 lg:space-y-8 animate-fade-in-up">
+        <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-sm">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Soporte</p>
+              <h1 className="text-2xl sm:text-3xl font-semibold text-gray-900 mt-1">
+                Centro de soporte Evaluassi
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-2 max-w-2xl">
+                Panel operativo para gestionar tickets, usuarios y comunicación del ecosistema.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {previewEnabled && (
+                <span className="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
+                  DEV PREVIEW
+                </span>
+              )}
             </div>
           </div>
-        </header>
 
-        <main className="flex-1 px-6 lg:px-10 py-8">
+          <div className="mt-5 flex flex-wrap gap-2">
+            {navItems.map(({ path, label, icon: Icon, badge }) => (
+              <NavLink
+                key={path}
+                to={`${basePath}/${path}`}
+                className={({ isActive }) =>
+                  `inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                    isActive
+                      ? 'bg-primary-50 text-primary-700'
+                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                  }`
+                }
+              >
+                <Icon className="h-4 w-4" />
+                {label}
+                {badge ? (
+                  <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-rose-500 px-1.5 text-[10px] font-semibold text-white">
+                    {badge}
+                  </span>
+                ) : null}
+              </NavLink>
+            ))}
+          </div>
+        </div>
+
+        <div className="min-w-0">
           <Outlet />
-        </main>
+        </div>
       </div>
-    </div>
+    </Layout>
   )
 }
 

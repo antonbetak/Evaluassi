@@ -1,15 +1,14 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import { ShieldAlert } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { isSupportPreviewEnabled } from '../../support/supportPreview'
 
 const SupportGuard = () => {
   const { user } = useAuthStore()
   const location = useLocation()
-  const devSupportEnabled = import.meta.env.VITE_DEV_SUPPORT_LOGIN === 'true'
+  const supportPreviewEnabled = isSupportPreviewEnabled()
 
-  console.log('[DEV SUPPORT LOGIN]', import.meta.env.VITE_DEV_SUPPORT_LOGIN)
-
-  if (devSupportEnabled && location.pathname.startsWith('/support')) {
+  if (supportPreviewEnabled && location.pathname.startsWith('/support')) {
     return <Outlet />
   }
 

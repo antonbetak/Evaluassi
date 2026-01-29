@@ -39,6 +39,8 @@ const Layout = ({ children }: LayoutProps) => {
 
   // Determinar si es una página de contenido completo (sin padding)
   const isFullContentPage = location.pathname.includes('/preview')
+  const isSupportRoute =
+    location.pathname.startsWith('/support') || location.pathname.startsWith('/dev/support')
 
   const handleLogout = async () => {
     try {
@@ -105,27 +107,30 @@ const Layout = ({ children }: LayoutProps) => {
           <div className="flex justify-between items-center h-12 xs:h-14 sm:h-16 lg:h-18 xl:h-20 3xl:h-22 4xl:h-24">
             <div className="flex items-center">
               {/* Botón hamburguesa para móvil */}
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="lg:hidden p-1.5 xs:p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 mr-1.5 xs:mr-2"
-                aria-label="Abrir menú"
-              >
-                {isMobileMenuOpen ? (
-                  <svg className="w-5 h-5 xs:w-6 xs:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                ) : (
-                  <svg className="w-5 h-5 xs:w-6 xs:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                )}
-              </button>
+              {!isSupportRoute && (
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="lg:hidden p-1.5 xs:p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 mr-1.5 xs:mr-2"
+                  aria-label="Abrir menú"
+                >
+                  {isMobileMenuOpen ? (
+                    <svg className="w-5 h-5 xs:w-6 xs:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5 xs:w-6 xs:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                  )}
+                </button>
+              )}
               
               <Link to="/dashboard" className="flex items-center">
                 <img src="/logo.png" alt="Evaluaasi" className="h-7 xs:h-8 sm:h-10 lg:h-12 xl:h-14 2xl:h-16 3xl:h-18 4xl:h-20 w-auto" />
               </Link>
               
               {/* Navegación desktop */}
+              {!isSupportRoute && (
               <nav className="hidden lg:flex ml-6 xl:ml-8 2xl:ml-12 3xl:ml-16 4xl:ml-20 space-x-3 xl:space-x-4 2xl:space-x-6 3xl:space-x-8 4xl:space-x-10">
                 <Link 
                   to="/dashboard" 
@@ -222,6 +227,7 @@ const Layout = ({ children }: LayoutProps) => {
                   </Link>
                 )}
               </nav>
+              )}
             </div>
 
             {/* User Dropdown */}

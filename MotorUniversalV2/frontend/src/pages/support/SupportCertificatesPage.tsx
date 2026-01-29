@@ -1,46 +1,49 @@
 import { useSupportCertificates } from '../../hooks/support/useSupportCertificates'
+import { Search } from 'lucide-react'
 
 const SupportCertificatesPage = () => {
   const { data: certificates = [] } = useSupportCertificates()
 
   return (
     <div className="space-y-6">
-      <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Soporte</p>
-        <h2 className="text-2xl font-semibold text-slate-900">Certificados</h2>
-        <p className="text-sm text-slate-600">
-          Consulta certificados por folio y ejecuta acciones rápidas (mock).
+      <div className="flex flex-col gap-2">
+        <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Certificados</p>
+        <h2 className="text-2xl font-semibold text-gray-900">Gestión de certificados</h2>
+        <p className="text-sm text-gray-600 max-w-2xl">
+          Administra folios y solicitudes relacionadas con emisión y revocación.
         </p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-        <div className="flex-1">
-          <label className="text-xs font-semibold text-slate-500">Buscar por folio</label>
-          <input
-            className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-            placeholder="CERT-2024-XXXX"
-          />
-        </div>
-        <div className="flex gap-2">
-          <button className="rounded-xl bg-primary-600 text-white px-4 py-2 text-sm font-semibold">
-            Reissue (mock)
-          </button>
-          <button className="rounded-xl border border-slate-200 text-slate-700 px-4 py-2 text-sm font-semibold">
-            Invalidar (mock)
-          </button>
-          <button className="rounded-xl border border-slate-200 text-slate-700 px-4 py-2 text-sm font-semibold">
-            Regenerar PDF (mock)
-          </button>
+      <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+            <input
+              className="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm"
+              placeholder="Buscar folio de certificado"
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button className="rounded-xl bg-primary-600 text-white px-4 py-2 text-sm font-semibold">
+              Reemitir
+            </button>
+            <button className="rounded-xl border border-gray-200 text-gray-700 px-4 py-2 text-sm font-semibold">
+              Invalidar
+            </button>
+            <button className="rounded-xl border border-gray-200 text-gray-700 px-4 py-2 text-sm font-semibold">
+              Regenerar PDF
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200">
-          <h3 className="text-sm font-semibold text-slate-900">Certificados recientes</h3>
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-900">Certificados recientes</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-slate-50 text-slate-500">
+            <thead className="bg-gray-50 text-gray-500">
               <tr>
                 <th className="px-6 py-3 text-left font-semibold">Folio</th>
                 <th className="px-6 py-3 text-left font-semibold">Candidato</th>
@@ -48,15 +51,15 @@ const SupportCertificatesPage = () => {
                 <th className="px-6 py-3 text-left font-semibold">Estado</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-gray-100">
               {certificates.map((certificate) => (
-                <tr key={certificate.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 font-semibold text-slate-900">{certificate.folio}</td>
-                  <td className="px-6 py-4 text-slate-600">{certificate.candidate}</td>
-                  <td className="px-6 py-4 text-slate-600">{certificate.issuedAt}</td>
+                <tr key={certificate.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 font-semibold text-gray-900">{certificate.folio}</td>
+                  <td className="px-6 py-4 text-gray-600">{certificate.candidate}</td>
+                  <td className="px-6 py-4 text-gray-600">{certificate.issuedAt}</td>
                   <td className="px-6 py-4">
                     <span
-                      className={`text-xs px-2.5 py-1 rounded-full ${
+                      className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
                         certificate.status === 'issued'
                           ? 'bg-emerald-50 text-emerald-600'
                           : certificate.status === 'pending'
