@@ -244,6 +244,35 @@ const SupportCommunicationPage = () => {
           )}
         </div>
       </div>
+      <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Integraciones futuras</p>
+          <h3 className="text-lg font-semibold text-gray-900">Canales externos</h3>
+          <p className="text-sm text-gray-700">
+            Este espacio quedará listo para conectar APIs de instalación y WhatsApp.
+          </p>
+        </div>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="rounded-xl border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-900">API de instalación</p>
+            <p className="text-xs text-gray-600 mt-2">
+              Sincroniza tickets con instalaciones y despliegues.
+            </p>
+            <button className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600">
+              Configurar
+            </button>
+          </div>
+          <div className="rounded-xl border border-gray-200 p-4">
+            <p className="text-sm font-semibold text-gray-900">WhatsApp Business</p>
+            <p className="text-xs text-gray-600 mt-2">
+              Habilita mensajería y notificaciones automáticas.
+            </p>
+            <button className="mt-4 rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600">
+              Conectar
+            </button>
+          </div>
+        </div>
+      </div>
       {selectedUser && showProfile && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40">
           <div className="h-full w-full max-w-md bg-white shadow-xl overflow-y-auto">
