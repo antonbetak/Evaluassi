@@ -4,7 +4,7 @@ import { mockCompanies, mockTickets } from '../support/mockSupportData'
 
 export type SupportTicketStatus = 'open' | 'pending' | 'solved'
 export type SupportPriority = 'low' | 'medium' | 'high'
-export type SupportChannel = 'web' | 'email' | 'whatsapp'
+export type SupportChannel = 'web' | 'email' | 'whatsapp' | 'instagram'
 
 export interface SupportTicketAttachment {
   name: string

@@ -4,7 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import {
   BadgeCheck,
   Clock3,
+  ClipboardCheck,
   MailCheck,
+  MessageSquareText,
+  PhoneCall,
   ShieldCheck,
   SignalHigh,
   TicketCheck,
@@ -60,6 +63,10 @@ const SupportDashboardPage = () => {
       : null
 
     const channels = Array.from(new Set(unresolvedTickets.map((ticket) => ticket.channel)))
+    const channelCounts = unresolvedTickets.reduce<Record<string, number>>((acc, ticket) => {
+      acc[ticket.channel] = (acc[ticket.channel] || 0) + 1
+      return acc
+    }, {})
 
     const recentTickets = [...tickets]
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
@@ -97,11 +104,73 @@ const SupportDashboardPage = () => {
       slaRiskTickets,
       averageResponseHours,
       channels,
+      channelCounts,
       recentTickets,
       priorityQueue,
       topCompanies,
     }
   }, [tickets, companies])
+
+  const supportAlerts = useMemo(
+    () => [
+      {
+        key: 'whatsapp',
+        title: 'Mensaje por WhatsApp',
+        count: metrics.channelCounts.whatsapp || 0,
+        helper: 'Canal crítico para incidencias urgentes',
+        tone: 'bg-emerald-50 text-emerald-600',
+      },
+      {
+        key: 'instagram',
+        title: 'Mensaje por Instagram',
+        count: metrics.channelCounts.instagram || 0,
+        helper: 'Revisa interacciones sociales nuevas',
+        tone: 'bg-fuchsia-50 text-fuchsia-600',
+      },
+      {
+        key: 'platform-chat',
+        title: 'Chat de plataforma',
+        count: metrics.channelCounts.web || 0,
+        helper: 'Seguimiento de usuarios en plataforma',
+        tone: 'bg-sky-50 text-sky-600',
+      },
+    ],
+    [metrics.channelCounts],
+  )
+
+  const resolvedChecklist = useMemo(
+    () => [
+      {
+        title: 'Tickets de alta prioridad resueltos',
+        done: metrics.resolvedTickets.filter((ticket) => ticket.priority === 'high').length,
+        total: tickets.filter((ticket) => ticket.priority === 'high').length,
+      },
+      {
+        title: 'Respuestas enviadas hoy',
+        done: tickets.filter((ticket) => {
+          if (!ticket.lastAgentResponseAt) return false
+          const responseDate = new Date(ticket.lastAgentResponseAt)
+          const today = new Date()
+          return responseDate.toDateString() === today.toDateString()
+        }).length,
+        total: Math.max(1, tickets.length),
+      },
+      {
+        title: 'Seguimientos pendientes priorizados',
+        done: Math.max(0, metrics.pendingTickets.length - metrics.slaRiskTickets.length),
+        total: Math.max(1, metrics.pendingTickets.length),
+      },
+    ],
+    [metrics.pendingTickets.length, metrics.resolvedTickets, metrics.slaRiskTickets.length, tickets],
+  )
+
+  const adminContact = {
+    name: 'Mariana Valdés',
+    role: 'Administración soporte',
+    email: 'soporte.admin@evaluassi.com',
+    phone: '+52 55 4821 0098',
+    availability: 'Lun - Vie · 08:00 - 18:00',
+  }
 
   return (
     <div className="space-y-6">
@@ -265,6 +334,58 @@ const SupportDashboardPage = () => {
               </div>
             </div>
           </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Alertas de canales</p>
+              <h3 className="text-lg font-semibold text-gray-900">Mensajes entrantes</h3>
+              <div className="mt-4 space-y-3">
+                {supportAlerts.map((alert) => (
+                  <div
+                    key={alert.key}
+                    className="flex items-center justify-between rounded-xl border border-gray-200 px-4 py-3"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{alert.title}</p>
+                      <p className="text-xs text-gray-500">{alert.helper}</p>
+                    </div>
+                    <span
+                      className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${alert.tone}`}
+                    >
+                      {alert.count}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+              <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Checklist</p>
+              <h3 className="text-lg font-semibold text-gray-900">Lo resuelto hoy</h3>
+              <div className="mt-4 space-y-4">
+                {resolvedChecklist.map((item) => {
+                  const progress =
+                    item.total > 0 ? Math.min(100, Math.round((item.done / item.total) * 100)) : 0
+                  return (
+                    <div key={item.title} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>{item.title}</span>
+                        <span className="font-semibold text-gray-900">
+                          {item.done}/{item.total}
+                        </span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+                        <div
+                          className="h-full rounded-full bg-primary-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-6">
@@ -345,6 +466,39 @@ const SupportDashboardPage = () => {
             <div className="mt-4 flex items-center justify-between rounded-xl border border-primary-100 bg-white px-4 py-3 text-sm text-gray-600">
               <span>Tickets resueltos hoy</span>
               <span className="font-semibold text-gray-900">{metrics.resolvedTickets.length}</span>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+            <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Contacto admin</p>
+            <h3 className="text-lg font-semibold text-gray-900">Escalación inmediata</h3>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-600">
+                  <UserCircle2 className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{adminContact.name}</p>
+                  <p className="text-xs text-gray-500">{adminContact.role}</p>
+                </div>
+              </div>
+              <div className="grid gap-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2">
+                  <MessageSquareText className="h-4 w-4 text-primary-500" />
+                  <span>{adminContact.email}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <PhoneCall className="h-4 w-4 text-primary-500" />
+                  <span>{adminContact.phone}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ClipboardCheck className="h-4 w-4 text-primary-500" />
+                  <span>{adminContact.availability}</span>
+                </div>
+              </div>
+              <div className="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3 text-xs text-gray-600">
+                Para incidencias críticas, confirma el folio y canal antes de escalar.
+              </div>
             </div>
           </div>
         </div>
