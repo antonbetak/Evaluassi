@@ -103,14 +103,11 @@ const UserDetailPage = lazy(() => import('./pages/users/UserDetailPage'))
 // Support (Soporte)
 const SupportDashboardPage = lazy(() => import('./pages/support/SupportDashboardPage'))
 const SupportUsersPage = lazy(() => import('./pages/support/SupportUsersPage'))
-const SupportTicketsPage = lazy(() => import('./pages/support/SupportTicketsPage'))
 const SupportCommunicationPage = lazy(() => import('./pages/support/SupportCommunicationPage'))
 const SupportCampusesPage = lazy(() => import('./pages/support/SupportCampusesPage'))
 const SupportCalendarPage = lazy(() => import('./pages/support/SupportCalendarPage'))
 const SupportSessionsPage = lazy(() => import('./pages/support/SupportSessionsPage'))
 const SupportCertificatesPage = lazy(() => import('./pages/support/SupportCertificatesPage'))
-const SupportVouchersPage = lazy(() => import('./pages/support/SupportVouchersPage'))
-const SupportTelemetryPage = lazy(() => import('./pages/support/SupportTelemetryPage'))
 const SupportSettingsPage = lazy(() => import('./pages/support/SupportSettingsPage'))
 
 function App() {
@@ -229,14 +226,11 @@ function App() {
                 <Route index element={<Navigate to="/support/dashboard" replace />} />
                 <Route path="dashboard" element={<SupportDashboardPage />} />
                 <Route path="users" element={<SupportUsersPage />} />
-                <Route path="tickets" element={<SupportTicketsPage />} />
                 <Route path="communication" element={<SupportCommunicationPage />} />
                 <Route path="campuses" element={<SupportCampusesPage />} />
                 <Route path="calendar" element={<SupportCalendarPage />} />
                 <Route path="sessions" element={<SupportSessionsPage />} />
                 <Route path="certificates" element={<SupportCertificatesPage />} />
-                <Route path="vouchers" element={<SupportVouchersPage />} />
-                <Route path="telemetry" element={<SupportTelemetryPage />} />
                 <Route path="settings" element={<SupportSettingsPage />} />
               </>
             ) : (
@@ -244,14 +238,11 @@ function App() {
                 <Route index element={<Navigate to="/support/dashboard" replace />} />
                 <Route path="dashboard" element={<SupportDashboardPage />} />
                 <Route path="users" element={<SupportUsersPage />} />
-                <Route path="tickets" element={<SupportTicketsPage />} />
                 <Route path="communication" element={<SupportCommunicationPage />} />
                 <Route path="campuses" element={<SupportCampusesPage />} />
                 <Route path="calendar" element={<SupportCalendarPage />} />
                 <Route path="sessions" element={<SupportSessionsPage />} />
                 <Route path="certificates" element={<SupportCertificatesPage />} />
-                <Route path="vouchers" element={<SupportVouchersPage />} />
-                <Route path="telemetry" element={<SupportTelemetryPage />} />
                 <Route path="settings" element={<SupportSettingsPage />} />
               </Route>
             )}
@@ -262,14 +253,11 @@ function App() {
             <Route index element={<Navigate to="/dev/support/dashboard" replace />} />
             <Route path="dashboard" element={<SupportDashboardPage />} />
             <Route path="users" element={<SupportUsersPage />} />
-            <Route path="tickets" element={<SupportTicketsPage />} />
             <Route path="communication" element={<SupportCommunicationPage />} />
             <Route path="campuses" element={<SupportCampusesPage />} />
             <Route path="calendar" element={<SupportCalendarPage />} />
             <Route path="sessions" element={<SupportSessionsPage />} />
             <Route path="certificates" element={<SupportCertificatesPage />} />
-            <Route path="vouchers" element={<SupportVouchersPage />} />
-            <Route path="telemetry" element={<SupportTelemetryPage />} />
             <Route path="settings" element={<SupportSettingsPage />} />
           </Route>
 

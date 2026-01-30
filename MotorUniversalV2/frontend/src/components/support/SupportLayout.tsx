@@ -3,9 +3,7 @@ import {
   CalendarDays,
   LayoutDashboard,
   MessageCircle,
-  Radio,
   Settings,
-  Ticket,
   Users,
   Building2,
   CalendarClock,
@@ -17,12 +15,9 @@ const navItems = [
   { path: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: 'campuses', label: 'Planteles a cargo', icon: Building2 },
   { path: 'users', label: 'Administración', icon: Users },
-  { path: 'tickets', label: 'Tickets', icon: Ticket },
   { path: 'communication', label: 'Chat', icon: MessageCircle, badge: 3 },
-  { path: 'vouchers', label: 'Vouchers', icon: Ticket },
   { path: 'calendar', label: 'Calendario de sesiones', icon: CalendarDays },
   { path: 'sessions', label: 'Total sesiones', icon: CalendarClock },
-  { path: 'telemetry', label: 'Telemetría', icon: Radio },
   { path: 'settings', label: 'Settings', icon: Settings },
 ]
 
