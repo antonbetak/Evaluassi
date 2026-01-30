@@ -5,7 +5,7 @@ Estructura: Material de Estudio → Sesiones → Temas → (4 elementos)
 import uuid
 import os
 from functools import wraps
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import text
 from app import db
@@ -2270,7 +2270,13 @@ def register_content_progress(content_type, content_id):
         user_id = get_jwt_identity()
         data = request.get_json() or {}
         
-        print(f"DEBUG register_content_progress: content_type={content_type}, content_id={content_id}, user_id={user_id}, data={data}")
+        current_app.logger.debug(
+            "register_content_progress payload content_type=%s content_id=%s user_id=%s data=%s",
+            content_type,
+            content_id,
+            user_id,
+            data,
+        )
         
         # Validar tipo de contenido
         valid_types = ['reading', 'video', 'downloadable', 'interactive']
@@ -2293,13 +2299,24 @@ def register_content_progress(content_type, content_id):
                 topic_id = content.topic_id
         elif content_type == 'interactive':
             content = StudyInteractiveExercise.query.get(content_id)
-            print(f"DEBUG: Looking for interactive exercise with id={content_id}, found={content is not None}")
+            current_app.logger.debug(
+                "Looking for interactive exercise id=%s found=%s",
+                content_id,
+                content is not None,
+            )
             if content:
                 topic_id = content.topic_id
-                print(f"DEBUG: Interactive exercise topic_id={topic_id}")
+                current_app.logger.debug(
+                    "Interactive exercise topic_id=%s",
+                    topic_id,
+                )
         
         if not topic_id:
-            print(f"DEBUG: Content not found for type={content_type}, id={content_id}")
+            current_app.logger.debug(
+                "Content not found for type=%s id=%s",
+                content_type,
+                content_id,
+            )
             return jsonify({'error': 'Contenido no encontrado'}), 404
         
         # Buscar progreso existente o crear uno nuevo
@@ -2317,22 +2334,31 @@ def register_content_progress(content_type, content_id):
                 topic_id=topic_id
             )
             db.session.add(progress)
-            print(f"DEBUG: Created new progress record")
+            current_app.logger.debug("Created new progress record")
         else:
-            print(f"DEBUG: Found existing progress record id={progress.id}, score={progress.score}, is_completed={progress.is_completed}")
+            current_app.logger.debug(
+                "Found existing progress record id=%s score=%s is_completed=%s",
+                progress.id,
+                progress.score,
+                progress.is_completed,
+            )
         
         # Determinar si está completado según el tipo
         is_completed = data.get('is_completed', False)
         score = data.get('score', None)
         
-        print(f"DEBUG: Processing score={score}, is_completed={is_completed}")
+        current_app.logger.debug(
+            "Processing score=%s is_completed=%s",
+            score,
+            is_completed,
+        )
         
         # Para interactivos, verificar si la calificación es 100% (todas las respuestas correctas)
         if content_type == 'interactive' and score is not None:
             # Solo actualizar el score si es mayor al existente (guardar la mejor calificación)
             if progress.score is None or score > progress.score:
                 progress.score = score
-                print(f"DEBUG: Updated score to {score}")
+                current_app.logger.debug("Updated score to %s", score)
             if score >= 100:
                 is_completed = True
         
@@ -2341,9 +2367,13 @@ def register_content_progress(content_type, content_id):
             progress.is_completed = True
             progress.completed_at = db.func.now()
         
-        print(f"DEBUG: Before commit - progress.score={progress.score}, progress.is_completed={progress.is_completed}")
+        current_app.logger.debug(
+            "Before commit progress.score=%s progress.is_completed=%s",
+            progress.score,
+            progress.is_completed,
+        )
         db.session.commit()
-        print(f"DEBUG: Commit successful")
+        current_app.logger.debug("Commit successful")
         
         # Invalidar cache del dashboard del usuario
         invalidate_on_progress_update(user_id)
@@ -2358,9 +2388,7 @@ def register_content_progress(content_type, content_id):
         
     except Exception as e:
         db.session.rollback()
-        print(f"DEBUG: Error in register_content_progress: {str(e)}")
-        import traceback
-        print(f"DEBUG: Traceback: {traceback.format_exc()}")
+        current_app.logger.exception("Error in register_content_progress")
         return jsonify({'error': str(e)}), 500
 
 
