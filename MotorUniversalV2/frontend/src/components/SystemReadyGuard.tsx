@@ -18,8 +18,13 @@ const MAX_ATTEMPTS = 5
 const RETRY_DELAY = 5000 // 5 seconds
 
 export default function SystemReadyGuard({ children }: SystemReadyGuardProps) {
+  const isDev = import.meta.env.MODE === 'development'
   // DEV ONLY: permitir acceso directo al módulo soporte en /dev/support sin warmup
   if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dev/support')) {
+    return <>{children}</>
+  }
+  // DEV ONLY: no bloquear /support por warmup cuando la BD remota no responde
+  if (typeof window !== 'undefined' && isDev && window.location.pathname.startsWith('/support')) {
     return <>{children}</>
   }
   // DEV ONLY: permitir acceso directo al módulo soporte en /support con preview sin warmup
@@ -58,8 +63,8 @@ export default function SystemReadyGuard({ children }: SystemReadyGuardProps) {
         const controller = new AbortController()
         const timeoutSignal = setTimeout(() => controller.abort(), 60000) // 60s timeout for cold start
 
-        // API_URL already includes /api, so use /warmup directly
-        const response = await fetch(`${API_URL}/api/warmup`, {
+        // API_URL already includes /api in dev/prod config, so use /warmup directly
+        const response = await fetch(`${API_URL}/warmup`, {
           signal: controller.signal
         })
 
@@ -91,6 +96,28 @@ export default function SystemReadyGuard({ children }: SystemReadyGuardProps) {
           timeoutId = setTimeout(checkSystem, RETRY_DELAY)
           return
         }
+
+        // Para cualquier otro status no exitoso, reintentar hasta MAX_ATTEMPTS
+        if (isMounted) {
+          if (currentAttempts >= MAX_ATTEMPTS) {
+            setStatus(prev => ({
+              ...prev,
+              isChecking: false,
+              message: `Servidor no disponible (HTTP ${response.status}).`,
+              showTip: false
+            }))
+            return
+          }
+
+          setStatus(prev => ({
+            ...prev,
+            isChecking: false,
+            message: 'Iniciando el sistema...',
+            showTip: currentAttempts >= 2
+          }))
+          timeoutId = setTimeout(checkSystem, RETRY_DELAY)
+        }
+        return
 
       } catch (error) {
         console.log('System check error:', error)

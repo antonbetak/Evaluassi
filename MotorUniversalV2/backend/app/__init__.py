@@ -86,6 +86,13 @@ def create_app(config_name='development'):
     except Exception as e:
         print(f"[INIT] ❌ Error importando partners_bp: {e}")
         raise
+
+    try:
+        from app.routes.support import bp as support_bp
+        print("[INIT] ✅ support_bp importado")
+    except Exception as e:
+        print(f"[INIT] ❌ Error importando support_bp: {e}")
+        raise
     
     print("[INIT] Registrando blueprints...")
     app.register_blueprint(auth.bp, url_prefix='/api/auth')
@@ -110,6 +117,8 @@ def create_app(config_name='development'):
     print("[INIT] ✅ standards registrado")
     app.register_blueprint(partners_bp, url_prefix='/api/partners')
     print("[INIT] ✅ partners registrado")
+    app.register_blueprint(support_bp)
+    print("[INIT] ✅ support registrado")
     
     # Importar y registrar user_management
     from app.routes.user_management import bp as user_management_bp
