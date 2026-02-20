@@ -492,6 +492,30 @@ export const listSupportUsers = async (params?: {
   }
 }
 
+export const sendSupportUserEmail = async (params: {
+  target: string
+  template: 'nuevo' | 'registro' | 'reenvio' | 'confirmacion'
+}): Promise<{
+  message: string
+  target: string
+  recipient_email: string
+  template: string
+  subject: string
+}> => {
+  const response = await api.post('/support/users/send-email', {
+    target: params.target,
+    template: params.template,
+  })
+
+  return {
+    message: response.data?.message || 'Correo enviado correctamente',
+    target: response.data?.target || params.target,
+    recipient_email: response.data?.recipient_email || params.target,
+    template: response.data?.template || params.template,
+    subject: response.data?.subject || '',
+  }
+}
+
 export const listSupportCalendarSessions = async (params?: {
   month?: string
   partner_id?: number

@@ -1,35 +1,83 @@
 import { useState } from 'react'
 import { Mail, Search, SendHorizonal } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { listSupportUsers } from '../../services/supportService'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { listSupportUsers, sendSupportUserEmail } from '../../services/supportService'
+
+type EmailTemplate = 'nuevo' | 'registro' | 'reenvio' | 'confirmacion'
 
 const SupportUsersPage = () => {
   const [searchInput, setSearchInput] = useState('')
-  const [roleFilter, setRoleFilter] = useState('candidato')
   const [appliedSearch, setAppliedSearch] = useState('')
-  const [appliedRole, setAppliedRole] = useState('candidato')
   const [mailTarget, setMailTarget] = useState('')
+  const [emailTemplate, setEmailTemplate] = useState<EmailTemplate>('nuevo')
+  const [mailMessage, setMailMessage] = useState<string | null>(null)
+  const [mailError, setMailError] = useState<string | null>(null)
 
-  const { data, isLoading, isError, error, isFetching } = useQuery({
-    queryKey: ['support', 'directory-users', appliedSearch, appliedRole],
+  const {
+    data: searchResults,
+    isLoading: isSearchingUsers,
+    isError: isSearchError,
+    error: searchError,
+    isFetching: isFetchingUsers,
+  } = useQuery({
+    queryKey: ['support', 'directory-users', appliedSearch],
     queryFn: () =>
       listSupportUsers({
         search: appliedSearch,
-        role: appliedRole,
+        role: '',
         page: 1,
-        per_page: 50,
+        per_page: 20,
       }),
+    enabled: appliedSearch.length >= 3,
   })
 
-  const users = data?.users || []
+  const users = searchResults?.users || []
+
+  const sendEmailMutation = useMutation({
+    mutationFn: sendSupportUserEmail,
+    onSuccess: (response) => {
+      setMailError(null)
+      setMailMessage(
+        response?.message
+          ? `${response.message} (${response.recipient_email})`
+          : 'Correo enviado correctamente',
+      )
+    },
+    onError: (err: any) => {
+      const backendError = err?.response?.data?.error || err?.response?.data?.message
+      setMailMessage(null)
+      setMailError(backendError || 'No se pudo enviar el correo')
+    },
+  })
 
   const handleSearch = () => {
-    setAppliedSearch(searchInput.trim())
-    setAppliedRole(roleFilter)
+    const target = searchInput.trim()
+    setMailMessage(null)
+    setMailError(null)
+
+    if (target.length < 3) {
+      setAppliedSearch('')
+      setMailError('Escribe al menos 3 caracteres para buscar')
+      return
+    }
+
+    setAppliedSearch(target)
   }
 
-  const handleQuickMail = (value: string) => {
-    setMailTarget(value)
+  const handleSendEmail = () => {
+    const target = mailTarget.trim()
+    setMailMessage(null)
+    setMailError(null)
+
+    if (!target) {
+      setMailError('Selecciona o captura un correo/usuario')
+      return
+    }
+
+    sendEmailMutation.mutate({
+      target,
+      template: emailTemplate,
+    })
   }
 
   return (
@@ -43,17 +91,7 @@ const SupportUsersPage = () => {
       </div>
 
       <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm space-y-4">
-        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto]">
-          <select
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-            className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm text-gray-600"
-          >
-            <option value="candidato">Estudiantes</option>
-            <option value="responsable">Responsables</option>
-            <option value="responsable_partner">Responsables partner</option>
-            <option value="">Todos los roles</option>
-          </select>
+        <div className="grid gap-4 md:grid-cols-[1fr_auto]">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <input
@@ -73,35 +111,35 @@ const SupportUsersPage = () => {
             onClick={handleSearch}
             className="rounded-xl bg-primary-600 px-5 py-2 text-sm font-semibold text-white"
           >
-            {isFetching ? 'Buscando...' : 'Buscar'}
+            {isFetchingUsers ? 'Buscando...' : 'Buscar'}
           </button>
         </div>
 
         <div className="rounded-xl border border-gray-200 bg-gray-50/40 px-4 py-3 text-xs text-gray-500">
-          Ingresa el nombre, usuario o correo de la persona que deseas buscar.
+          Para alto volumen, no se lista todo. Busca y selecciona el usuario correcto para cargar el destinatario.
         </div>
 
-        {isLoading && (
+        {isSearchingUsers && (
           <div className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
-            Cargando usuarios...
+            Buscando usuarios...
           </div>
         )}
 
-        {isError && (
+        {isSearchError && (
           <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-            No se pudieron cargar usuarios
-            {error instanceof Error ? `: ${error.message}` : ''}
+            No se pudo buscar usuarios
+            {searchError instanceof Error ? `: ${searchError.message}` : ''}
           </div>
         )}
 
-        {!isLoading && !isError && (
+        {!isSearchingUsers && !isSearchError && appliedSearch.length >= 3 && (
           <div className="space-y-3">
             <p className="text-xs text-gray-500">
-              {data?.total || 0} resultado(s) en base de datos.
+              {searchResults?.total || 0} resultado(s) para "{appliedSearch}".
             </p>
             {users.length === 0 ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                No se encontraron estudiantes para esos filtros.
+                No se encontraron usuarios para esa búsqueda.
               </div>
             ) : (
               <div className="space-y-2">
@@ -119,10 +157,15 @@ const SupportUsersPage = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => handleQuickMail(user.email || user.username)}
+                      type="button"
+                      onClick={() => {
+                        setMailTarget(user.email || user.username)
+                        setMailMessage('Destinatario seleccionado')
+                        setMailError(null)
+                      }}
                       className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 self-start sm:self-auto"
                     >
-                      Usar en correo
+                      Seleccionar
                     </button>
                   </div>
                 ))}
@@ -145,18 +188,44 @@ const SupportUsersPage = () => {
             className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm"
           />
           <div className="flex flex-wrap gap-2">
-            {['Nuevo', 'Registro', 'Reenvío', 'Confirmación'].map((label) => (
+            {[
+              { key: 'nuevo', label: 'Nuevo' },
+              { key: 'registro', label: 'Registro' },
+              { key: 'reenvio', label: 'Reenvío' },
+              { key: 'confirmacion', label: 'Confirmación' },
+            ].map((option) => (
               <button
-                key={label}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50"
+                key={option.key}
+                type="button"
+                onClick={() => setEmailTemplate(option.key as EmailTemplate)}
+                className={`rounded-lg border px-4 py-2 text-xs font-semibold hover:bg-gray-50 ${
+                  emailTemplate === option.key
+                    ? 'border-primary-200 bg-primary-50 text-primary-700'
+                    : 'border-gray-200 text-gray-600'
+                }`}
               >
-                {label}
+                {option.label}
               </button>
             ))}
           </div>
-          <button className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white">
+          {mailMessage && (
+            <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+              {mailMessage}
+            </p>
+          )}
+          {mailError && (
+            <p className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+              {mailError}
+            </p>
+          )}
+          <button
+            type="button"
+            onClick={handleSendEmail}
+            disabled={sendEmailMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          >
             <SendHorizonal className="h-4 w-4" />
-            Enviar correo
+            {sendEmailMutation.isPending ? 'Enviando...' : 'Enviar correo'}
           </button>
         </div>
       </div>

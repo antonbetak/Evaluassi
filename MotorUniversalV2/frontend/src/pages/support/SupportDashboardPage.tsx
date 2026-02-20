@@ -2,8 +2,6 @@ import { Link, useLocation } from 'react-router-dom'
 import {
   BadgeCheck,
   ClipboardCheck,
-  MessageSquareText,
-  PhoneCall,
   ShieldCheck,
   UserCircle2,
   Users2,
@@ -52,14 +50,6 @@ const SupportDashboardPage = () => {
       helper: 'Notas para coordinación de equipo',
     },
   ]
-
-  const adminContact = {
-    name: 'Mariana Valdés',
-    role: 'Administración soporte',
-    email: 'soporte.admin@evaluassi.com',
-    phone: '+52 55 4821 0098',
-    availability: 'Lun - Vie · 08:00 - 18:00',
-  }
 
   return (
     <div className="space-y-6">
@@ -201,38 +191,6 @@ const SupportDashboardPage = () => {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <p className="text-xs uppercase tracking-[0.2em] text-gray-400">Contacto admin</p>
-          <h3 className="text-lg font-semibold text-gray-900">Escalación inmediata</h3>
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50 text-primary-600">
-                <UserCircle2 className="h-5 w-5" />
-              </span>
-              <div>
-                <p className="text-sm font-semibold text-gray-900">{adminContact.name}</p>
-                <p className="text-xs text-gray-500">{adminContact.role}</p>
-              </div>
-            </div>
-            <div className="grid gap-2 text-sm text-gray-600">
-              <div className="flex items-center gap-2">
-                <MessageSquareText className="h-4 w-4 text-primary-500" />
-                <span>{adminContact.email}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <PhoneCall className="h-4 w-4 text-primary-500" />
-                <span>{adminContact.phone}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <ClipboardCheck className="h-4 w-4 text-primary-500" />
-                <span>{adminContact.availability}</span>
-              </div>
-            </div>
-            <div className="rounded-xl border border-primary-100 bg-primary-50/60 px-4 py-3 text-xs text-gray-600">
-              Para incidencias críticas, confirma el folio y canal antes de escalar.
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

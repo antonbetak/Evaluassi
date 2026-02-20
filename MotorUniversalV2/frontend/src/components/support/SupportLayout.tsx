@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   CalendarDays,
   LayoutDashboard,
@@ -10,6 +12,7 @@ import {
 } from 'lucide-react'
 import Layout from '../layout/Layout'
 import { isSupportPreviewEnabled } from '../../support/supportPreview'
+import { loadSupportSettings, subscribeSupportSettings } from '../../support/supportSettings'
 
 const navItems = [
   { path: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,7 +27,20 @@ const navItems = [
 const SupportLayout = () => {
   const previewEnabled = isSupportPreviewEnabled()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const basePath = location.pathname.startsWith('/dev/support') ? '/dev/support' : '/support'
+  const [settings, setSettings] = useState(loadSupportSettings())
+
+  useEffect(() => subscribeSupportSettings(setSettings), [])
+
+  useEffect(() => {
+    if (!settings.autoRefreshEnabled) return
+    const intervalId = window.setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['support'] })
+    }, 5 * 60 * 1000)
+
+    return () => window.clearInterval(intervalId)
+  }, [queryClient, settings.autoRefreshEnabled])
 
   return (
     <Layout>

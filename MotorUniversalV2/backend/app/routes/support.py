@@ -9,6 +9,7 @@ from app.services.support_service import (
     get_support_campuses,
     get_support_partners,
     get_support_users,
+    send_support_user_email,
 )
 
 bp = Blueprint("support", __name__, url_prefix="/api/support")
@@ -99,3 +100,20 @@ def create_campus():
         return jsonify({"error": str(exc), "message": "Datos inválidos para crear campus"}), 400
     except Exception as exc:
         return jsonify({"error": str(exc), "message": "No se pudo crear el campus"}), 500
+
+
+@bp.route("/users/send-email", methods=["POST"])
+def send_support_email():
+    """
+    Enviar correo de soporte a un usuario.
+    """
+    try:
+        payload = request.get_json(silent=True) or {}
+        target = payload.get("target")
+        template = payload.get("template")
+        result = send_support_user_email(target=target, template=template)
+        return jsonify(result), 200
+    except ValueError as exc:
+        return jsonify({"error": str(exc), "message": "Datos inválidos para envío de correo"}), 400
+    except Exception as exc:
+        return jsonify({"error": str(exc), "message": "No se pudo enviar el correo"}), 500

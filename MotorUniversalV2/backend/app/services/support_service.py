@@ -3,9 +3,13 @@ Servicios de negocio para el módulo de soporte.
 """
 from collections import defaultdict
 from datetime import datetime
+import os
 import secrets
+import smtplib
+import ssl
 import string
 from typing import Any
+from email.message import EmailMessage
 
 from sqlalchemy import inspect
 
@@ -431,4 +435,132 @@ def get_support_calendar_sessions(
         "month": month,
         "total": len(events),
         "events": events,
+    }
+
+
+def _normalize_template_key(template: str | None) -> str:
+    normalized = (template or "").strip().lower()
+    replacements = {
+        "reenvio": "reenvio",
+        "reenvío": "reenvio",
+        "confirmacion": "confirmacion",
+        "confirmación": "confirmacion",
+        "nuevo": "nuevo",
+        "registro": "registro",
+    }
+    return replacements.get(normalized, normalized)
+
+
+def _build_support_email_template(template: str, user: User | None) -> tuple[str, str]:
+    full_name = " ".join(
+        [
+            str(part).strip()
+            for part in [getattr(user, "name", None), getattr(user, "first_surname", None), getattr(user, "second_surname", None)]
+            if part and str(part).strip()
+        ]
+    ) or (getattr(user, "username", None) or "usuario")
+
+    templates: dict[str, tuple[str, str]] = {
+        "nuevo": (
+            "Bienvenido(a) a Evaluaasi",
+            (
+                f"Hola {full_name},\n\n"
+                "Te damos la bienvenida a Evaluaasi. Tu cuenta ya está disponible para iniciar sesión.\n"
+                "Si necesitas apoyo, responde a este correo para atenderte.\n\n"
+                "Atentamente,\nEquipo de Soporte Evaluaasi"
+            ),
+        ),
+        "registro": (
+            "Confirmación de registro en Evaluaasi",
+            (
+                f"Hola {full_name},\n\n"
+                "Confirmamos que tu registro fue procesado correctamente.\n"
+                "Ya puedes ingresar a la plataforma con tus credenciales.\n\n"
+                "Atentamente,\nEquipo de Soporte Evaluaasi"
+            ),
+        ),
+        "reenvio": (
+            "Reenvío de información de acceso",
+            (
+                f"Hola {full_name},\n\n"
+                "Te compartimos nuevamente la información solicitada para tu acceso.\n"
+                "Si presentas algún problema, comunícate con soporte.\n\n"
+                "Atentamente,\nEquipo de Soporte Evaluaasi"
+            ),
+        ),
+        "confirmacion": (
+            "Confirmación de solicitud",
+            (
+                f"Hola {full_name},\n\n"
+                "Hemos recibido y confirmado tu solicitud.\n"
+                "Te notificaremos cualquier actualización por este medio.\n\n"
+                "Atentamente,\nEquipo de Soporte Evaluaasi"
+            ),
+        ),
+    }
+
+    if template not in templates:
+        raise ValueError("template inválido. Usa: nuevo, registro, reenvio, confirmacion")
+
+    return templates[template]
+
+
+def send_support_user_email(target: str, template: str) -> dict[str, Any]:
+    target_value = (target or "").strip()
+    if not target_value:
+        raise ValueError("target es requerido")
+
+    template_key = _normalize_template_key(template)
+    subject: str
+    body: str
+
+    user = User.query.filter((User.email == target_value) | (User.username == target_value)).first()
+    recipient_email = target_value
+    if user:
+        recipient_email = user.email or target_value
+
+    if "@" not in recipient_email:
+        raise ValueError("No se encontró un correo válido para el usuario indicado")
+
+    subject, body = _build_support_email_template(template_key, user)
+
+    mail_server = os.getenv("MAIL_SERVER", "").strip()
+    mail_port = int(os.getenv("MAIL_PORT", "587"))
+    mail_use_tls = os.getenv("MAIL_USE_TLS", "true").strip().lower() in {"1", "true", "yes"}
+    mail_use_ssl = os.getenv("MAIL_USE_SSL", "false").strip().lower() in {"1", "true", "yes"}
+    mail_username = os.getenv("MAIL_USERNAME", "").strip()
+    mail_password = os.getenv("MAIL_PASSWORD", "").strip()
+    mail_default_sender = os.getenv("MAIL_DEFAULT_SENDER", "").strip() or mail_username
+
+    if not mail_server:
+        raise ValueError("MAIL_SERVER no está configurado")
+    if not mail_default_sender:
+        raise ValueError("MAIL_DEFAULT_SENDER o MAIL_USERNAME no está configurado")
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = mail_default_sender
+    msg["To"] = recipient_email
+    msg.set_content(body)
+
+    context = ssl.create_default_context()
+    if mail_use_ssl:
+        with smtplib.SMTP_SSL(mail_server, mail_port, context=context, timeout=20) as smtp:
+            if mail_username and mail_password:
+                smtp.login(mail_username, mail_password)
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP(mail_server, mail_port, timeout=20) as smtp:
+            if mail_use_tls:
+                smtp.starttls(context=context)
+            if mail_username and mail_password:
+                smtp.login(mail_username, mail_password)
+            smtp.send_message(msg)
+
+    return {
+        "message": "Correo enviado correctamente",
+        "target": target_value,
+        "recipient_email": recipient_email,
+        "template": template_key,
+        "subject": subject,
     }
